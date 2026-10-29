@@ -1,0 +1,47 @@
+{
+  "name": "envpulse",
+  "version": "0.1.0",
+  "description": "Audit .env drift and secret leaks in your repository - zero dependencies",
+  "type": "module",
+  "bin": {
+    "envpulse": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "node --experimental-strip-types src/cli.ts"
+  },
+  "keywords": [
+    "dotenv",
+    "env",
+    "secrets",
+    "security",
+    "drift",
+    "lint",
+    "cli",
+    "devops"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
