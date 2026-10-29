@@ -39,6 +39,10 @@
     "devops"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kesheC/envpulse.git"
+  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
