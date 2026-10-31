@@ -31,13 +31,13 @@ unrelated package. Every release ships a ready-to-install tarball instead:
 
 ```bash
 # global install, straight from the latest release
-npm install -g https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
+npm install -g https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
 envpulse --version
 ```
 
 ```bash
 # or as a project dev dependency
-npm install -D https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
+npm install -D https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
 npx envpulse check
 ```
 
@@ -416,13 +416,13 @@ ESLint 不管这些，`dotenv` 不管这些，人工 review 在 400 行 diff 里
 
 ```bash
 # 全局安装：直接从最新 release 装
-npm install -g https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
+npm install -g https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
 envpulse --version
 ```
 
 ```bash
 # 或者装成项目的 devDependency
-npm install -D https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
+npm install -D https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
 npx envpulse check
 ```
 
