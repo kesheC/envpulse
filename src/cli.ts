@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import process from "node:process";
@@ -336,12 +336,17 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   }
 }
 
+// realpathSync on both sides: npm links the bin shim to this file, so
+// process.argv[1] is the symlink while import.meta.url is already the real
+// path. Comparing raw paths makes the CLI exit silently doing nothing.
 const invokedDirectly = (() => {
   const entry = process.argv[1];
   if (entry === undefined) return false;
-  const self = path.resolve(process.argv[1] ?? "");
-  const thisFile = path.resolve(fileURLToPath(import.meta.url));
-  return self === thisFile;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
 })();
 
 if (invokedDirectly) {
