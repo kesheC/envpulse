@@ -52,8 +52,8 @@ npm ci && npm run build && npm link
 Requires Node.js >= 20.11. No `postinstall`, no native modules, no network access at runtime.
 
 > Installing straight from the git URL (`npm i -g git+https://github.com/...`) does
-> **not** work on npm 11: global installs skip `devDependencies`, so the `prepare`
-> build finds no `tsc`. Use the tarball above.
+> **not** work: the checkout has no build output and a global install skips
+> `devDependencies`, so there is no `tsc` to build it with. Use the tarball above.
 
 ## Quick start
 
