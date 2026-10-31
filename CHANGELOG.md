@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The README shipped the author's absolute paths.** Two sample transcripts printed a real local working directory. The released tarball bundles the README, so those paths were going out to every user; they are now `<repo>/...` and `<workspace>`, with a line saying only the path differs on your machine.
+
 ## [0.1.5] - 2026-11-01
 
 ### Changed

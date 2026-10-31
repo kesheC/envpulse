@@ -107,12 +107,13 @@ Exit code: `0` when no high-severity finding exists, `1` when at least one does,
 - run: envpulse check
 ```
 
-Real output, run against the `examples/demo-app` fixture in this repository:
+Real output, run against the `examples/demo-app` fixture in this repository.
+The working directory is printed as `<repo>/...` here; your own machine prints its real path and nothing else differs:
 
 ```text
 $ envpulse check --cwd examples/demo-app
 envpulse check  (v0.1.5)
-cwd: E:\deepseek_workspace\github\projects\envpulse\examples\demo-app
+cwd: <repo>/examples/demo-app
 
 env files
       env  .env  5 keys  1 duplicate
@@ -316,12 +317,12 @@ $ envpulse check --cwd examples/demo-app --json
 }
 ```
 
-**What happens when there is no `.env` at all** — the honest answer, run against the workspace repository this tool was built in:
+**What happens when there is no `.env` at all** — the honest answer, run in the workspace repository this tool was built in (`<workspace>` below is that checkout):
 
 ```text
 $ envpulse check
 envpulse check  (v0.1.5)
-cwd: E:\deepseek_workspace\github
+cwd: <workspace>
 
 no .env files found - nothing to cross-check.
 
