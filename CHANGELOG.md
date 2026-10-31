@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-01
+
+### Fixed
+
+- **The CLI exited silently when started from an npm bin link.** The entry
+  guard compared `process.argv[1]` with `import.meta.url` as raw strings. Node
+  resolves `import.meta.url` to the real path but leaves `argv[1]` as written,
+  so whenever the binary was reached through a link the guard was false, `main`
+  never ran, and the process exited 0 having printed nothing. Every invocation
+  is compared through `realpathSync` on both sides now, with a regression test
+  that runs the built binary through a link and a CI step that asserts the
+  printed version instead of only the exit code.
+
 ## [0.1.2] - 2026-11-01
 
 ### Changed
@@ -76,7 +89,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: Ubuntu and Windows, Node 20 and 22.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.2...HEAD
+[0.1.3]: https://github.com/kesheC/envpulse/compare/v0.1.2...v0.1.3
+[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.3...HEAD
 [0.1.2]: https://github.com/kesheC/envpulse/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/kesheC/envpulse/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/kesheC/envpulse/releases/tag/v0.1.0
