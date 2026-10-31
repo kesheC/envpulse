@@ -5,9 +5,9 @@
 `envpulse` is a zero-dependency CLI that cross-checks your `.env` files against the variables your source code actually reads. It reports **missing**, **unused**, **drifting**, **duplicated**, and **leaked** values — including secrets committed by accident into `.env.example`.
 
 [![CI](https://github.com/kesheC/envpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/kesheC/envpulse/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/envpulse.svg)](https://www.npmjs.com/package/envpulse)
-[![license](https://img.shields.io/npm/l/envpulse.svg)](LICENSE)
-[![node](https://img.shields.io/node/v/envpulse.svg)](package.json)
+[![Release](https://img.shields.io/github/v/release/kesheC/envpulse?color=blue)](https://github.com/kesheC/envpulse/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20.11-informational.svg)](package.json)
 
 **Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The whole installed package is ~40 KB of compiled TypeScript.
 
@@ -26,31 +26,52 @@ Linters don't check this. `dotenv` doesn't check this. Reviewers miss it in a 40
 
 ## Install
 
+`envpulse` is **not published to the npm registry** — the name there belongs to an
+unrelated package. Every release ships a ready-to-install tarball instead:
+
 ```bash
-npm install -D envpulse
-# or run it without installing:
+# global install, straight from the latest release
+npm install -g https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
+envpulse --version
+```
+
+```bash
+# or as a project dev dependency
+npm install -D https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
 npx envpulse check
 ```
 
-Requires Node.js >= 20. No `postinstall`, no native modules, no network access at runtime.
+From a checkout, if you prefer to build it yourself:
+
+```bash
+git clone https://github.com/kesheC/envpulse.git
+cd envpulse
+npm ci && npm run build && npm link
+```
+
+Requires Node.js >= 20.11. No `postinstall`, no native modules, no network access at runtime.
+
+> Installing straight from the git URL (`npm i -g git+https://github.com/...`) does
+> **not** work on npm 11: global installs skip `devDependencies`, so the `prepare`
+> build finds no `tsc`. Use the tarball above.
 
 ## Quick start
 
 ```bash
 # 1. Audit the current repository
-npx envpulse check
+envpulse check
 
 # 2. Machine-readable output for CI
-npx envpulse check --json
+envpulse check --json
 
 # 3. Compare two env files without ever printing secrets
-npx envpulse diff .env .env.example
+envpulse diff .env .env.example
 
 # 4. Fill the keys your code needs into .env
-npx envpulse sync --from .env.example --to .env --dry-run
+envpulse sync --from .env.example --to .env --dry-run
 
 # 5. Paste a config into a ticket, with values masked
-npx envpulse mask < .env
+envpulse mask < .env
 ```
 
 ## Usage
@@ -71,7 +92,7 @@ Cross-checks every `.env*` file in the project against the variables that the so
 Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage. Drop it straight into CI:
 
 ```yaml
-- run: npx envpulse check
+- run: envpulse check
 ```
 
 Real output, run against the `examples/demo-app` fixture in this repository:
@@ -384,22 +405,39 @@ ESLint 不管这些，`dotenv` 不管这些，人工 review 在 400 行 diff 里
 
 ### 安装
 
+`envpulse` **没有发布到 npm registry**（那个名字被别人占了）。每个 release 都附带
+可直接安装的 tarball：
+
 ```bash
-npm install -D envpulse
-# 或者不安装直接用：
+# 全局安装：直接从最新 release 装
+npm install -g https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
+envpulse --version
+```
+
+```bash
+# 或者装成项目的 devDependency
+npm install -D https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
 npx envpulse check
 ```
 
-需要 Node.js >= 20。没有 `postinstall`，没有原生模块，运行时**不联网**。
+想自己编译就从源码来：
+
+```bash
+git clone https://github.com/kesheC/envpulse.git
+cd envpulse
+npm ci && npm run build && npm link
+```
+
+需要 Node.js >= 20.11。没有 `postinstall`，没有原生模块，运行时**不联网**。
 
 ### 快速开始
 
 ```bash
-npx envpulse check                          # 体检当前仓库
-npx envpulse check --json                   # 给 CI 用的 JSON
-npx envpulse diff .env .env.example         # 对比两个文件（默认打码）
-npx envpulse sync --from .env.example --to .env --dry-run
-npx envpulse mask < .env                    # 贴到工单里也不会泄露
+envpulse check                          # 体检当前仓库
+envpulse check --json                   # 给 CI 用的 JSON
+envpulse diff .env .env.example         # 对比两个文件（默认打码）
+envpulse sync --from .env.example --to .env --dry-run
+envpulse mask < .env                    # 贴到工单里也不会泄露
 ```
 
 ### 各命令说明
