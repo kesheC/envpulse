@@ -380,6 +380,12 @@ Types shipped in `dist/index.d.ts`: `EnvFile`, `EnvEntry`, `Finding`, `CheckRepo
 
 **Monorepo support?**  `check --cwd packages/api` works today. A `--workspace` flag is on the roadmap.
 
+## Security and changes
+
+Found a vulnerability? Please do not open a public issue — [SECURITY.md](SECURITY.md)
+explains the private reporting channel and what to include. Every release is written
+up in [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 MIT © 2026 kesheC. See [LICENSE](LICENSE).
@@ -473,6 +479,11 @@ const report = checkProject({ cwd: process.cwd() });
 const diff = diffFiles('.env', '.env.example', '.env', '.env.example', { reveal: false });
 const sync = syncEnvFiles({ from: '.env.example', to: '.env', dryRun: true });
 ```
+
+## 安全与变更
+
+发现安全问题请**不要**开公开 issue —— [SECURITY.md](SECURITY.md) 说明了私密上报渠道以及
+需要提供哪些信息。每个版本的改动都记在 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 
