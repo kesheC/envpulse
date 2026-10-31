@@ -3,6 +3,7 @@ import type {
   DiffReport,
   Finding,
   FindingCode,
+  InvalidLine,
   Severity,
 } from "./types.js";
 
@@ -138,6 +139,18 @@ function formatFinding(
   return rows.join("\n");
 }
 
+/**
+ * One unparseable line, described without quoting it.
+ *
+ * Length plus a short digest is enough to answer the only two questions this
+ * report is asked: "did this line change?" and "is this the same junk on both
+ * sides?". It is not enough to reconstruct a secret.
+ */
+function describeRow(row: InvalidLine): string {
+  const what = row.keyMaterial ? "looks like key material, omitted" : `${row.length} bytes, omitted`;
+  return `line ${row.line}: ${what}`;
+}
+
 /** Render a human readable diff report. */
 export function formatDiffReport(report: DiffReport, options: FormatOptions = {}): string {
   const c = painter(options.color === true);
@@ -168,19 +181,28 @@ export function formatDiffReport(report: DiffReport, options: FormatOptions = {}
       lines.push(`  ${c.yellow("~")} ${entry.key}`);
       lines.push(c.dim(`      A: ${entry.a}`));
       lines.push(c.dim(`      B: ${entry.b}`));
-      if (entry.pemLines !== undefined) lines.push(c.dim(`      + ${entry.pemLines} more line(s) of key material`));
+      if (entry.pemLines !== undefined) {
+        const noun = entry.pemLines === 1 ? "line" : "lines";
+        lines.push(c.dim(`      + ${entry.pemLines} more ${noun} of key material`));
+      }
     }
     lines.push("");
   }
 
   // Lines that are not a KEY=value assignment are not keys, but they are still
-  // content: showing them is the difference between "identical" and "a typo
+  // content: noticing them is the difference between "identical" and "a typo
   // swallowed a variable".
+  //
+  // They are described, never quoted. An unparseable line is exactly where a
+  // pasted private key or a `DATABASE_URL postgres://user:pass@host` ends up,
+  // and printing it here used to put key material straight on stdout - the one
+  // thing this tool exists to prevent. `check` never printed them either, so
+  // this also ends the disagreement between the two commands.
   const sameInvalid =
     report.invalidA.length === report.invalidB.length &&
-    report.invalidA.every((line, index) => line.text === report.invalidB[index]?.text);
+    report.invalidA.every((line, index) => line.digest === report.invalidB[index]?.digest);
   if (!sameInvalid) {
-    const sides: { label: string; rows: { line: number; text: string }[] }[] = [
+    const sides: { label: string; rows: InvalidLine[] }[] = [
       { label: "A", rows: report.invalidA },
       { label: "B", rows: report.invalidB },
     ];
@@ -188,7 +210,7 @@ export function formatDiffReport(report: DiffReport, options: FormatOptions = {}
       if (side.rows.length === 0) continue;
       lines.push(c.bold(`not a KEY=value assignment in ${side.label} (${side.rows.length})`));
       for (const row of side.rows) {
-        lines.push(`  ${c.cyan("-")} line ${row.line}: ${row.text}`);
+        lines.push(`  ${c.cyan("-")} ${describeRow(row)}`);
       }
       lines.push("");
     }

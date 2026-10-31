@@ -76,22 +76,34 @@ export interface SensitiveKeyOptions {
 const SECRET_KEY_RE = /(SECRET|TOKEN|PASSWORD|PASSWD|PWD|API[_-]?KEY|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CREDENTIAL|AUTH|SIGNATURE|SALT|CERT)/i;
 
 /**
- * True when a line is the body of a PEM block rather than an assignment.
+ * True when a line can continue a PEM block body.
  *
  * A .env cannot hold a real PEM in one value - the key is pasted as a raw
- * multi-line block right after `PRIVATE_KEY=-----BEGIN ...-----  `, so the
- * following lines parse as unassignable text. mask and diff both need to treat
- * that whole run as one secret, therefore they share this predicate.
+ * multi-line block, so the following lines parse as unassignable text. mask,
+ * diff and the parser all need to treat that whole run as one secret, so they
+ * share this predicate.
+ *
+ * Blank lines are body, not a terminator: a pasted key can carry a stray empty
+ * line, and stopping there used to push the rest of the base64 straight into
+ * the unparseable bucket, where it was printed verbatim. Only a line that
+ * starts a *new* assignment ends the block.
  */
 export function isPemBodyLine(line: string): boolean {
   const trimmed = line.trim();
-  if (trimmed === "" || trimmed.startsWith("#")) return false;
-  if (/^[A-Za-z_][A-Za-z0-9_.-]*\s*=/.test(trimmed)) return false;
-  return true;
+  if (trimmed === "") return true;
+  if (trimmed.startsWith("#")) return false;
+  const assignment = /^[A-Za-z_][A-Za-z0-9_.-]*\s*=/.exec(trimmed);
+  if (assignment === null) return true;
+  // `abc=` and `abc==` are base64 padding at the end of a key line, not an
+  // assignment with an empty value. Roughly a quarter of real 2048-bit RSA keys
+  // end with one of those, and treating them as keys made a key line look like
+  // a variable name.
+  const after = trimmed.slice(assignment[0].length);
+  return after === "" || /^=+$/.test(after);
 }
 
 /** Marks the first line of a PEM block, either bare or as an env value. */
-const PEM_BEGIN_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|-----BEGIN CERTIFICATE-----/;
+const PEM_BEGIN_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|-----BEGIN CERTIFICATE-----/i;
 
 /** True when this line opens a PEM block. */
 export function opensPemBlock(line: string): boolean {
@@ -100,7 +112,7 @@ export function opensPemBlock(line: string): boolean {
 
 /** True when this line closes a PEM block. */
 export function closesPemBlock(line: string): boolean {
-  return /-----END [A-Z0-9 ]*PRIVATE KEY-----|-----END CERTIFICATE-----/.test(line);
+  return /-----END [A-Z0-9 ]*PRIVATE KEY-----|-----END CERTIFICATE-----/i.test(line);
 }
 
 /** True when a value should never be pasted into a screenshot. */

@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.11-informational.svg)](package.json)
 
-**Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The published package is 48 KB packed / 180 KB unpacked, 36 files.
+**Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The published package is 57 KB packed / 206 KB unpacked, 36 files.
 
 ---
 
@@ -114,8 +114,32 @@ Case 2 is decided by one `git ls-files` call for the whole run. If git is missin
 `INVALID` exists because a swallowed line is indistinguishable from a missing
 variable. Write `DATABASE_URL postgres://...` (no `=`) and the key simply does
 not exist; without this check the only symptom is a `MISSING` finding pointing
-at a line that is right there in front of you. It is **medium**, so it cannot
-turn a build red on its own:
+at a line that is right there in front of you.
+
+**An unparseable line is never printed.** It is the one place where a secret has
+no structure to mask: a half-pasted key, a connection string with the `=` missing,
+a `cat key.pem >> .env` tail. So `check` and `diff` describe such a line instead
+of quoting it — line number, length, and whether it looks like key material — and
+the text stays out of stdout and out of `--json`. `mask` rewrites the line in
+place rather than echoing it back; see [the mask section](#envpulse-mask--env--share-config-safely).
+
+**Why `INVALID` is medium and never reds your build.** Dotenv files in the wild
+carry dialect the format never defined — `[section]` headers, `KEY value` lines
+copied out of a README, YAML-style `KEY:`, shell fragments pasted from a
+deploy script. Some of those a lenient loader actually tolerates; some are real
+bugs. A checker cannot tell them apart, and one that failed the build on every
+unrecognised line would red half the repositories it touches. Medium keeps the
+finding visible in the human report and available to `--json` consumers
+(`counts.medium`), while the exit code stays reserved for problems that change
+runtime behaviour. If you want it to gate your CI anyway, gate on the JSON:
+
+```bash
+# fail the build when a line was silently swallowed, without making INVALID high
+envpulse check --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).counts.medium>0?1:0))'
+```
+
+The block below is a real run of that same situation — the `=` is missing on line 2
+of `.env`, so the variable silently vanishes:
 
 ```text
 $ envpulse check --cwd /tmp/noequals
@@ -141,14 +165,11 @@ INVALID (1)
 0 high, 2 medium, 0 low  -> exit 0
 ```
 
-> One caveat about this repository's own fixture: `examples/demo-app/.env` **is**
-> tracked by `git ls-files` (the demo needs a realistic `.env`), so it falls under
-> case 2. It survives on a technicality: its value is
-> `sk_test_51H8xQ2eZvKYlo2C9`, 25 characters in total and 17 after `sk_test_`,
-> while the `stripe-test-long` rule wants 20 body characters and the entropy rule
-> wants 32. Lengthen that value and the demo output below gains a `UNSAFE` row
-> with a different summary line. That is the intended behaviour, not an oversight
-> — the fixture really is a tracked `.env`.
+> The demo fixture is **generated, not committed**: run `npm run demo:fixtures`
+> first. It writes `examples/demo-app/.env`, which `.gitignore` excludes, so the
+> demo exercises UNSAFE case 3 (an untracked local `.env`) instead of case 2. A
+> tool that catches secrets in tracked `.env` files has no business shipping one,
+> even a harmless one.
 
 Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage. Drop it straight into CI:
 
@@ -156,8 +177,9 @@ Exit code: `0` when no high-severity finding exists, `1` when at least one does,
 - run: envpulse check
 ```
 
-Real output, run against the `examples/demo-app` fixture in this repository.
-The working directory is printed as `<repo>/...` here; your own machine prints its real path and nothing else differs:
+Real output, run against the `examples/demo-app` fixture in this repository
+(after `npm run demo:fixtures`). The working directory is printed as `<repo>/...`
+here; your own machine prints its real path and nothing else differs:
 
 ```text
 $ envpulse check --cwd examples/demo-app
@@ -224,10 +246,10 @@ UNSAFE (4)
 4 high, 0 medium, 0 low  -> exit 1
 ```
 
-That fixture is **generated, not committed** — run `node scripts/make-leaky-fixture.mjs` first:
+That fixture is **generated, not committed** — run `npm run demo:fixtures` first:
 
 ```bash
-node scripts/make-leaky-fixture.mjs   # writes examples/leaky/.env.example (gitignored)
+npm run demo:fixtures   # writes examples/demo-app/.env and examples/leaky/.env.example
 envpulse check --cwd examples/leaky
 ```
 
@@ -277,8 +299,12 @@ Add `--reveal` when you really need the plaintext — it is never the default.
 
 A rotated key is a change even when the header is byte-identical, so `diff`
 digests the lines *underneath* a `-----BEGIN ... PRIVATE KEY-----` header
-(the body cannot fit in an env value) and compares that too. `--reveal` still
-never prints a PEM block:
+(the body cannot fit in an env value) and compares that too. The digest is a
+truncated SHA-256, so "identical" for a PEM block is a 64-bit judgement rather
+than a byte comparison — deliberate for an advisory CLI, and the block's bytes
+are never loaded for comparison in the first place. `--reveal` still never
+prints a PEM block, and the count below reports key material lines only
+(the `-----END ...-----` marker is a delimiter, not a secret):
 
 ```text
 $ envpulse diff a.env b.env --reveal
@@ -290,7 +316,7 @@ changed values (1)
   ~ PRIVATE_KEY
       A: --****--
       B: --****--
-      + 2 more line(s) of key material
+      + 2 more lines of key material
 
 0 key(s) identical
 ```
@@ -305,7 +331,7 @@ A: junk.env (2 keys)
 B: junk2.env (2 keys)
 
 not a KEY=value assignment in A (1)
-  - line 2: DIFFERENT JUNK HERE
+  - line 2: 19 bytes, omitted
 
 2 key(s) identical
 ```
@@ -341,7 +367,7 @@ PORT=9090
 
 Masking is driven by the **value** first and the **key name** second, so `LOG_LEVEL=debug` and a credential-free `DATABASE_URL` stay readable while `STRIPE_SECRET_KEY` is masked. A key called `DB` whose value actually contains a password is masked too — the value decides, not the name. Pass `--all` to mask everything.
 
-A PEM block cannot live in a single env value, which is exactly how it leaks: the assignment line gets masked and the key material on the following lines used to be printed in full. `mask` now swallows the whole block through its `-----END ...-----` line:
+A PEM block cannot live in a single env value, which is exactly how it leaks: the assignment line gets masked and the key material on the following lines used to be printed in full. `mask` swallows the whole block through its `-----END ...-----` line:
 
 ```text
 $ printf 'PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAsecretbody\n-----END RSA PRIVATE KEY-----\nDEBUG=true\n' > /tmp/pem.env
@@ -351,6 +377,43 @@ MI****dy
 --****--
 DEBUG=true
 ```
+
+That holds for the shapes people actually produce, not just the tidy one:
+
+- **`cat key.pem >> .env`** leaves `PRIVATE_KEY=` empty on one line and a bare
+  `-----BEGIN ...-----` on the next. The block is still recognised and masked.
+- **A blank line** somewhere inside the body does not end it. (It used to.)
+- **Lowercase labels** — `-----begin rsa private key-----` — are valid RFC 7468
+  and are handled like any other block.
+- **A base64 line that ends in `=`** (about a quarter of real 2048-bit RSA keys)
+  is body, not a `KEY=` assignment.
+
+```text
+$ printf 'PRIVATE_KEY=\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAsecretbody\n-----END RSA PRIVATE KEY-----\nDEBUG=true\n' > /tmp/pem2.env
+$ envpulse mask < /tmp/pem2.env
+PRIVATE_KEY=
+--****--
+MI****dy
+--****--
+DEBUG=true
+```
+
+`mask` also fixes the line it cannot parse. The usual cause is a missing `=`, and
+a mask that echoes a URL full of credentials back at you is worse than no mask at
+all, because you trust it enough to paste the output into an issue:
+
+```text
+$ cat typo.env
+GOOD=1
+DATABASE_URL postgres://admin:hunter2hunter2@db.internal:5432/prod
+$ envpulse mask typo.env
+GOOD=1
+DATABASE_URL po****od
+```
+
+`mask` reads stdin, or a single file argument, so `envpulse mask .env` does what
+it looks like it does. A file that cannot be read is an error (exit 2), not a
+silent no-op.
 
 `diff` shares the same predicate: a PEM header is masked even with `--reveal`, because the header is the block opener, not a value you can retype.
 
@@ -500,7 +563,7 @@ note: template .env is not an example file - it may contain real values.
 
 ## How it works
 
-1. **Parse** (`src/parser.ts`). A real dotenv parser, not a regex split: `export` prefixes, single/double/unquoted values, inline `#` comments (respecting quotes), `\n` / `\t` / `\"` escapes, multi-line double-quoted values, UTF-8 BOM, and CRLF/LF detection. Unparseable lines are collected into `EnvFile.invalid`, surfaced as `INVALID` findings and shown in `diff`, never silently dropped. A value that opens a PEM block swallows its body lines and keeps a SHA-256 digest of them, which is what lets `diff` see a rotated key whose header did not change.
+1. **Parse** (`src/parser.ts`). A real dotenv parser, not a regex split: `export` prefixes, single/double/unquoted values, inline `#` comments (respecting quotes), `\n` / `\t` / `\"` escapes, multi-line double-quoted values, UTF-8 BOM, and CRLF/LF detection. Unparseable lines are collected into `EnvFile.invalid`, surfaced as `INVALID` findings and shown in `diff`, never silently dropped — and never quoted either: the record keeps a length, a digest and a "looks like key material" flag instead of the text. A value that opens a PEM block swallows its body lines and keeps a SHA-256 digest of them, which is what lets `diff` see a rotated key whose header did not change.
 2. **Scan** (`src/scan.ts`). Walks the tree deterministically (sorted), skipping `node_modules`, `.git`, `dist`, `build`, `venv`, and friends. Files are dispatched by extension:
    - `.js .mjs .cjs .ts .mts .cts .jsx .tsx` → `process.env.NAME`, `process.env["NAME"]`, `import.meta.env.NAME`, `Deno.env.get("NAME")`
    - `.py` → `os.environ["NAME"]`, `os.environ.get("NAME")`, `os.getenv("NAME")`
@@ -532,7 +595,7 @@ Types shipped in `dist/index.d.ts`: `EnvFile`, `EnvEntry`, `Finding`, `CheckRepo
 
 ## FAQ
 
-**Does it upload my secrets anywhere?**  No. It never opens a socket. There is no telemetry, no registry call, no update check. Read `src/` — it is ~2,100 lines and imports only `node:fs`, `node:path`, `node:process`, `node:url` and `node:child_process` (the last one solely to run `git ls-files`, which reads your local index and touches no network).
+**Does it upload my secrets anywhere?**  No. It never opens a socket. There is no telemetry, no registry call, no update check. Read `src/` — it is ~2,400 lines and imports only `node:fs`, `node:path`, `node:process`, `node:url`, `node:crypto` (to digest PEM bodies) and `node:child_process` (solely to run `git ls-files`, which reads your local index and touches no network).
 
 **Will it flag a fake key in my test suite?**  Usually not: placeholders (`changeme`, `xxxx`, `your-key-here`, `sk_test_...`, `AKIAIOSFODNN7EXAMPLE`) are explicitly ignored. If a fixture still trips it, `--no-unsafe` disables the rule.
 
@@ -626,6 +689,7 @@ envpulse check --json                   # 给 CI 用的 JSON
 envpulse diff .env .env.example         # 对比两个文件（默认打码）
 envpulse sync --from .env.example --to .env --dry-run
 envpulse mask < .env                    # 贴到工单里也不会泄露
+envpulse mask .env                      # 也可以直接给文件名
 ```
 
 ### 各命令说明
@@ -635,20 +699,25 @@ envpulse mask < .env                    # 贴到工单里也不会泄露
 | `check` | 体检：缺失 / 未使用 / 漂移 / 重复 / 非法行 / 泄漏 / 空值。有 high 级问题退出码为 `1`。 |
 | `diff <a> <b>` | 逐键对比两个 env 文件，**默认对值打码**，`--reveal` 才显示明文。 |
 | `sync --from --to` | 把模板里有、目标文件里没有的键**按模板顺序插入**；绝不删除、绝不改动已有行。 |
-| `mask` | 从 stdin 读 env 文本，把敏感值打码后输出。 |
+| `mask` | 从 stdin（或一个文件名参数）读 env 文本，把敏感值打码后输出。 |
 | `init --from-code` | 扫描源码，反向生成 `.env.example` 骨架，按目录分组。 |
 
 退出码：`0` 无高危问题，`1` 存在高危问题（或 `diff` 发现差异），`2` 用法错误。
 
 真实运行输出见上方的英文部分 —— 每一个代码块都是在 `examples/` 目录和本仓库上实际跑出来的，不是编的。
 
+要复现这些 demo，先跑 `npm run demo:fixtures`：它会生成 `examples/demo-app/.env` 和 `examples/leaky/.env.example`，两个都被 `.gitignore` 排除。**故意不提交**：一个专门抓「被提交的 .env」的工具，自己的仓库里不该躺着一个被跟踪的 `.env`，哪怕它无毒。
+
 ### 几个关键设计
 
-- **零依赖**是刻意的：安全工具自己成为供应链风险就很荒谬。整包 `npm pack` 出来 48 KB、解包 180 KB、36 个文件。
+- **零依赖**是刻意的：安全工具自己成为供应链风险就很荒谬。整包 `npm pack` 出来 57 KB、解包 206 KB、36 个文件。
 - **`UNSAFE` 只有三种情况**：① 真密钥在模板文件（`.env.example` / `.env.sample` / `.env.template`）里 —— 模板本来就是给人提交的，一定是 high；② 真密钥在**被 git 跟踪**的普通 `.env` 里 —— 有人把它提交了，同样 high，报错信息会写明 `in a file tracked by git`；③ 真密钥在**没被 git 跟踪**的 `.env` 里 —— 那正是 `.env` 的用途，不报、不吵。跟踪状态整轮只跑一次 `git ls-files`；机器上没有 git、或者当前目录不是仓库时，静默退化为只查模板，绝不因为 git 而崩掉。
 - **打码看值，其次看名字**：`mask` 先判断值本身像不像密钥（带密码的连接串、PEM 私钥、高熵串……），再看键名里有没有 `SECRET` / `TOKEN` / `PASSWORD`。所以 `LOG_LEVEL=debug` 和无密码的 `DATABASE_URL` 保持可读，而键名叫 `DB`、值里带密码的照样打码。
 - **PEM 整块打码，也整块比对**：私钥塞不进一行 env 值 —— 赋值行被打了码、后面的密钥正文却原样输出，这正是最常见的泄漏方式。`mask` 会一路吞到 `-----END ...-----` 那一行；`diff` 共用同一套判断，即使加 `--reveal` 也不显示 PEM 头。同时 `diff` 会为 PEM 正文算一个摘要参与比对，所以**只换了密钥正文、头没变**的轮换也能被发现，行数变了同样能。
+- **真实产出的三种畸形 PEM 也认**：`cat key.pem >> .env` 留下的「空值 + 下一行裸 `-----BEGIN`」、正文中间夹一行空行、小写标签 `-----begin rsa private key-----`（RFC 7468 本来就大小写不敏感）—— 这三种以前都能把私钥正文整段漏到 stdout，现在各自的回归测试都断言**正文片段永远不出现在输出里**，而不是只看退出码。另外约四分之一真实的 2048 位 RSA 私钥，最后一行 base64 以 `=` 结尾，长得像个 `KEY=` 赋值；这类行也算正文。
+- **看不懂的行绝不回显**：一行不是 `KEY=value` 时，它恰恰是最可能藏密钥的地方（半截粘贴的私钥、少了等号的带密码连接串）。所以 `check` 和 `diff` 只描述它 —— 行号、长度、像不像密钥材料 —— 原文既不进 stdout 也不进 `--json`；`mask` 则是就地打码，而不是把它原样吐回来。
 - **不吞掉看不懂的行**：一行既不是注释也不是 `KEY=value` 时，`check` 报 `INVALID`（medium，指向具体行号），`diff` 也不会再说「完全相同」。典型场景是把 `DATABASE_URL=...` 写成 `DATABASE_URL ...`：变量彻底消失，以前只会得到一个指向「缺失」的误导性报告。
+- **`INVALID` 是 medium、不单独把构建搞红**：真实世界的 dotenv 里塞满了格式从没定义过的东西 —— `[section]`、从 README 里抄来的 `KEY value`、YAML 味的 `KEY:`、从部署脚本里粘过来的 shell 片段。其中有些宽松的加载器根本能忍，有些是真 bug，工具分不清；把每一行看不懂的都设成 high，只会让半个世界的仓库变红，然后大家集体加 `--no-invalid`。medium 让它在人类可读报告里被看见、在 `--json` 的 `counts.medium` 里可被消费，而退出码继续留给真正改变运行时行为的问题。真要用它卡 CI，就卡 JSON（英文那节有现成的一行）。
 - **路径写错不是绿灯**：`check` / `init` 的 `--cwd` 会先校验目录存在，不存在就 `exit 2`，而不是打印「没找到 .env」然后退出 0。
 - **`sync` 只插入、不重写**：直接对原始文本做行拼接，所以注释、引号风格、CRLF 换行全部原样保留。
 - **占位符不算泄漏**：`changeme`、`xxxx`、`your-key-here`、`sk_test_...`、`AKIAIOSFODNN7EXAMPLE` 都会被放过。

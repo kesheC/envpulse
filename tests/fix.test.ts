@@ -50,7 +50,7 @@ describe("diffFiles", () => {
     expect(text).toContain("othervalue456");
     expect(text).not.toContain("BEGIN RSA PRIVATE KEY");
     expect(text).not.toContain("BEGIN OPENSSH PRIVATE KEY");
-    expect(text).toContain("more line(s) of key material");
+    expect(text).toMatch(/more lines? of key material/);
   });
 
   // Regression: the value of a PEM key stops at the header line, so a rotated
@@ -78,8 +78,62 @@ describe("diffFiles", () => {
     const report = diffFiles(path.join(dir, "a.env"), path.join(dir, "b.env"), "a.env", "b.env");
     expect(report.identical).toBe(false);
     expect(report.changed.map((e) => e.key)).toEqual(["PRIVATE_KEY"]);
-    // B has three body lines plus the END line; the report quotes the larger side.
-    expect(report.changed[0]?.pemLines).toBe(4);
+    // Three base64 lines. The -----END----- marker is not key material, so it
+    // must not be counted - "+4 more lines" for a three-line body is the kind of
+    // wrong-but-documented number that teaches users to distrust the report.
+    expect(report.changed[0]?.pemLines).toBe(3);
+  });
+
+  // The suite above pins the count when the two sides differ. This one pins the
+  // exact wording of the banner on both sides of the singular/plural boundary,
+  // because "1 more line(s)" reads like a bug even when the number is right.
+  it("counts only the key material lines and pluralises the banner", () => {
+    const dir = makeRepo({
+      "one.env": ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "AAAA", "-----END RSA PRIVATE KEY-----"].join("\n") + "\n",
+      "one2.env": ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "ZZZZ", "-----END RSA PRIVATE KEY-----"].join("\n") + "\n",
+      "two.env": ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "AAAA", "BBBB", "-----END RSA PRIVATE KEY-----"].join("\n") + "\n",
+      "two2.env": ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "ZZZZ", "YYYY", "-----END RSA PRIVATE KEY-----"].join("\n") + "\n",
+    });
+    const single = diffFiles(path.join(dir, "one.env"), path.join(dir, "one2.env"), "one.env", "one2.env");
+    expect(single.changed[0]?.pemLines).toBe(1);
+    const singleText = formatDiffReport(single, { color: false });
+    expect(singleText).toContain("+ 1 more line of key material");
+    expect(singleText).not.toContain("line(s)");
+
+    const plural = diffFiles(path.join(dir, "two.env"), path.join(dir, "two2.env"), "two.env", "two2.env");
+    expect(plural.changed[0]?.pemLines).toBe(2);
+    const pluralText = formatDiffReport(plural, { color: false });
+    expect(pluralText).toContain("+ 2 more lines of key material");
+    // Neither banner may quote the END marker line.
+    expect(pluralText).not.toContain("+ 3 more");
+  });
+
+  // Regression: the body walk stopped at a blank line, the rest of the key fell
+  // into the unparseable bucket, and that bucket used to be printed verbatim.
+  it("never prints key material that sits behind a blank line", () => {
+    const lines = (bodyA: string, bodyB: string): string[] => [
+      "K=-----BEGIN RSA PRIVATE KEY-----",
+      bodyA,
+      "",
+      bodyB,
+      "-----END RSA PRIVATE KEY-----",
+    ];
+    const dir = makeRepo({
+      "a.env": lines("BODYLINEAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "BODYLINEBBBBBBBBBBBBBBBBBBBBBBBBBBBB").join("\n") + "\n",
+      "b.env": lines("BODYLINEAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "BODYLINEBBBBBBBBBBBBBBBBBBBBBBBBBBBB").join("\n") + "\n",
+    });
+    const report = diffFiles(path.join(dir, "a.env"), path.join(dir, "b.env"), "a.env", "b.env");
+    const text = formatDiffReport(report, { color: false });
+    expect(text).not.toContain("BODYLINE");
+    // The digest still sees the body, so rotation is visible even with a blank line.
+    const rotated = makeRepo({
+      "a.env": lines("BODYLINEAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "BODYLINEBBBBBBBBBBBBBBBBBBBBBBBBBBBB").join("\n") + "\n",
+      "b.env": lines("BODYLINEAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "BODYLINEZZZZZZZZZZZZZZZZZZZZZZZZZZZZ").join("\n") + "\n",
+    });
+    const rotatedReport = diffFiles(path.join(rotated, "a.env"), path.join(rotated, "b.env"), "a.env", "b.env");
+    expect(rotatedReport.identical).toBe(false);
+    expect(rotatedReport.changed.map((e) => e.key)).toEqual(["K"]);
+    expect(formatDiffReport(rotatedReport, { color: false })).not.toContain("BODYLINE");
   });
 
   // Regression: lines that are not KEY=value assignments were dropped on the
@@ -88,10 +142,14 @@ describe("diffFiles", () => {
     const dir = makeRepo({ "junk.env": "GOOD=1\nDIFFERENT JUNK HERE\nGOOD2=2\n", "junk2.env": "GOOD=1\nGOOD2=2\n" });
     const report = diffFiles(path.join(dir, "junk.env"), path.join(dir, "junk2.env"), "junk.env", "junk2.env");
     expect(report.identical).toBe(false);
-    expect(report.invalidA.map((line) => line.text)).toEqual(["DIFFERENT JUNK HERE"]);
+    expect(report.invalidA.map((line) => line.line)).toEqual([2]);
     expect(report.invalidB).toEqual([]);
     const text = formatDiffReport(report, { color: false });
-    expect(text).toContain("DIFFERENT JUNK HERE");
+    expect(text).toContain("not a KEY=value assignment in A (1)");
+    expect(text).toContain("line 2:");
+    // The line is described, never quoted: an unparseable line is where secrets
+    // end up, and stdout is the wrong place for them.
+    expect(text).not.toContain("DIFFERENT JUNK HERE");
   });
   it("returns an empty diff for identical files", () => {
     const dir = makeRepo({ "a.env": "A=1\nB=2\n", "b.env": "A=1\nB=2\n" });
@@ -155,6 +213,80 @@ describe("maskText", () => {
     const input = "SIGNING_NOTE=the -----BEGIN line is documented in the README\n";
     const out = maskText(input);
     expect(out).toBe(input);
+  });
+
+  // Regression: the body walk stopped at the first line that did not look like
+  // base64, and a blank line is the cheapest way to be "not base64". One stray
+  // empty line printed the entire key to stdout.
+  it("masks through a blank line inside a PEM block", () => {
+    const input =
+      [
+        "K=-----BEGIN RSA PRIVATE KEY-----",
+        "BODYLINEAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "",
+        "BODYLINEBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "-----END RSA PRIVATE KEY-----",
+        "AFTER=ok",
+      ].join("\n") + "\n";
+    const out = maskText(input);
+    expect(out).not.toContain("BODYLINEAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    expect(out).not.toContain("BODYLINEBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+    expect(out).not.toContain("-----END RSA PRIVATE KEY-----");
+    expect(out).toContain("K=");
+    expect(out).toContain("AFTER=ok");
+  });
+
+  // Regression: `cat key.pem >> .env` leaves the marker on its own line under an
+  // empty value, which none of the earlier fixtures covered.
+  it("masks a PEM block whose marker sits on its own line", () => {
+    const input =
+      [
+        "PRIVATE_KEY=",
+        "-----BEGIN RSA PRIVATE KEY-----",
+        "BODYH1111AAAAAAAAAAAAAAAAAAAAAAAA",
+        "BODYH2222BBBBBBBBBBBBBBBBBBBBBBBB",
+        "-----END RSA PRIVATE KEY-----",
+        "DEBUG=true",
+      ].join("\n") + "\n";
+    const out = maskText(input);
+    expect(out).not.toContain("BODYH1111AAAAAAAAAAAAAAAAAAAAAAAA");
+    expect(out).not.toContain("BODYH2222BBBBBBBBBBBBBBBBBBBBBBBB");
+    expect(out).not.toContain("-----BEGIN RSA PRIVATE KEY-----");
+    expect(out).not.toContain("-----END RSA PRIVATE KEY-----");
+    expect(out).toContain("DEBUG=true");
+  });
+
+  // Regression: `mask` returned unparseable lines verbatim, so the one line
+  // most likely to hold a leaked URL - a typo'd DATABASE_URL with no "=" -
+  // came back in clear and the caller pasted it into an issue.
+  it("masks secrets on a line that is not a KEY=value assignment", () => {
+    const input = "GOOD=1\nDATABASE_URL postgres://admin:PA55W0RD_LEAK@db.internal/prod\n";
+    const out = maskText(input);
+    expect(out).not.toContain("PA55W0RD_LEAK");
+    expect(out).toContain("GOOD=1");
+    // Still one line per line: masking must not restructure the file.
+    expect(out.split("\n")).toHaveLength(input.split("\n").length);
+  });
+
+  it("masks the value of a space-separated assignment", () => {
+    const out = maskText("DB_PASSWORD hunter2secretvalue\nCOMMENT=ok\n");
+    expect(out).not.toContain("hunter2secretvalue");
+    expect(out).toContain("COMMENT=ok");
+  });
+
+  // RFC 7468 labels are case-insensitive; the first regex was not.
+  it("masks a PEM block with a lowercase label", () => {
+    const input =
+      [
+        "K=-----begin rsa private key-----",
+        "BODYLOWERCASEAAAAAAAAAAAAAAAAAAAA",
+        "-----end rsa private key-----",
+        "DEBUG=true",
+      ].join("\n") + "\n";
+    const out = maskText(input);
+    expect(out).not.toContain("BODYLOWERCASEAAAAAAAAAAAAAAAAAAAA");
+    expect(out).not.toContain("-----end rsa private key-----");
+    expect(out).toContain("DEBUG=true");
   });
 });
 

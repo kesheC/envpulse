@@ -90,8 +90,32 @@ describe("parseEnvText - core grammar", () => {
   it("collects invalid lines and only throws in strict mode", () => {
     const lenient = parseEnvText("A=1\nthis is not valid\nB=2\n");
     expect(lenient.invalid).toHaveLength(1);
-    expect(lenient.invalid[0]).toEqual({ line: 2, text: "this is not valid" });
+    // Described, never quoted: an unparseable line is where a pasted key or a
+    // connection string with a password ends up.
+    expect(lenient.invalid[0]).toMatchObject({ line: 2, length: 17, keyMaterial: false });
+    expect(lenient.invalid[0]).not.toHaveProperty("text");
+    expect(JSON.stringify(lenient.invalid)).not.toContain("this is not valid");
     expect(() => parseEnvText("A=1\nnot valid\n", { strict: true })).toThrow(EnvParseError);
+  });
+
+  it("marks key material in an unparseable line without keeping the text", () => {
+    const file = parseEnvText("A=1\nMIIEowIBAAKCAQEAsecretbody1234\n");
+    expect(file.invalid[0]?.keyMaterial).toBe(true);
+    expect(JSON.stringify(file.invalid)).not.toContain("MIIEow");
+  });
+
+  // Regression: the shape `cat key.pem >> .env` produces. The marker is on its
+  // own line under an empty value, so no assignment line ever held it.
+  it("attributes a bare PEM block to the empty assignment above it", () => {
+    const file = parseEnvText(
+      ["PRIVATE_KEY=", "-----BEGIN RSA PRIVATE KEY-----", "AAAAbodyline", "BBBBbodyline", "-----END RSA PRIVATE KEY-----", "B=2"].join("\n") + "\n",
+    );
+    expect(file.invalid).toHaveLength(0);
+    const entry = file.entries.find((e) => e.key === "PRIVATE_KEY");
+    expect(entry?.value).toBe("");
+    expect(entry?.pemLines).toBe(2);
+    expect(entry?.pemBodyDigest).toBeDefined();
+    expect(JSON.stringify(file.entries)).not.toContain("AAAAbodyline");
   });
 
   it("throws on an unterminated quote in strict mode", () => {

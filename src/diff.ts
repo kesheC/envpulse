@@ -73,7 +73,7 @@ export function diffFiles(aPath: string, bPath: string, displayA: string, displa
   const invalidB = [...fileB.invalid].sort((x, y) => x.line - y.line);
   const sameInvalid =
     invalidA.length === invalidB.length &&
-    invalidA.every((line, index) => line.text === invalidB[index]?.text);
+    invalidA.every((line, index) => line.digest === invalidB[index]?.digest);
 
   return {
     tool: "envpulse",

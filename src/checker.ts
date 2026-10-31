@@ -248,11 +248,17 @@ export function checkProject(options: CheckOptions): CheckReport {
     // into a phantom MISSING finding for a variable that is right there.
     for (const bad of file.invalid) {
       const more = file.invalid.length > 1 ? ` (${file.invalid.length} such lines in this file)` : "";
+      // Wording has to point somewhere useful. A base64 blob is not a typo you
+      // can fix by adding "="; it is a key someone pasted, and the advice is to
+      // keep it out of the file, not to punctuate it.
+      const what = bad.keyMaterial
+        ? "looks like key material (a PEM block or base64 payload), not a KEY=value line - it is not read by envpulse and must not be committed"
+        : "not a valid KEY=value assignment - it is ignored, so any variable on this line is missing (maybe a missing \"=\"?)";
       findings.push({
         code: "INVALID",
         severity: severityFor("INVALID"),
         key: `line ${bad.line}`,
-        message: `not a valid KEY=value assignment - it is ignored, so any variable on this line is missing (maybe a missing "="?)${more}`,
+        message: `${what}${more}`,
         file: p.file,
         line: bad.line,
       });

@@ -87,6 +87,8 @@ export type { FormatOptions } from "./report.js";
 export {
   maskValue,
   shortDigest,
+  describeInvalidLine,
+  looksLikeKeyMaterial,
   gitTrackedFiles,
   shannonEntropy,
   isEnvFileName,

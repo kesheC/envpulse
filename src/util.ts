@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import type { InvalidLine } from "./types.js";
 
 /** Convert a platform path to forward slashes so output is identical on Windows and POSIX. */
 export function toPosix(p: string): string {
@@ -30,6 +31,39 @@ export function shannonEntropy(value: string): number {
  */
 export function shortDigest(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex").slice(0, 16);
+}
+
+/**
+ * Does this line look like key material rather than a typo?
+ *
+ * Used only to pick the right wording for an unparseable line. The line itself
+ * is never printed either way - that is the whole point of tracking it as a
+ * length plus a digest.
+ */
+export function looksLikeKeyMaterial(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed === "") return false;
+  if (/-{5}\s*(BEGIN|END)\s/i.test(trimmed)) return true;
+  // A base64 run: the shape every PEM body line takes.
+  return trimmed.length >= 16 && /^[A-Za-z0-9+/]+={0,2}$/.test(trimmed);
+}
+
+/**
+ * Describe a line the parser could not turn into an assignment, without
+ * carrying its text.
+ *
+ * `diff` used to print these lines verbatim, which put raw PEM body lines and
+ * `DATABASE_URL postgres://user:pass@host` on stdout. `check` already refused to
+ * print them; now the data structure makes printing them impossible.
+ */
+export function describeInvalidLine(line: number, text: string): InvalidLine {
+  const trimmed = text.trim();
+  return {
+    line,
+    length: trimmed.length,
+    keyMaterial: looksLikeKeyMaterial(trimmed),
+    digest: shortDigest(trimmed),
+  };
 }
 
 /** Mask a secret so it is still recognisable but not copyable. */

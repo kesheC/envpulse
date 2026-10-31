@@ -24,7 +24,11 @@ export interface EnvEntry {
    * makes two keys comparable - and it is a digest so it is safe to print.
    */
   pemBodyDigest?: string;
-  /** How many raw lines the PEM body occupied, closing line included. */
+  /**
+   * How many lines of actual key material the PEM block held. The closing
+   * `-----END ...-----` marker is not counted: it carries no secret, and
+   * quoting it in "+N more lines" made the report overstate the block by one.
+   */
   pemLines?: number;
 }
 
@@ -32,6 +36,26 @@ export interface DuplicateKey {
   key: string;
   /** Every 1-based line number the key is assigned on. */
   lines: number[];
+}
+
+/**
+ * A line that is neither blank, comment, nor a valid `KEY=value` assignment.
+ *
+ * The raw text is deliberately absent. An unparseable line is exactly the kind
+ * of content a secret ends up on - a PEM body the parser did not attribute to a
+ * key, a `DATABASE_URL postgres://user:pass@host` with the `=` missing - so
+ * printing it would leak what this tool exists to contain. A one-way digest
+ * keeps the line comparable without exposing it.
+ */
+export interface InvalidLine {
+  /** 1-based line number. */
+  line: number;
+  /** Length of the trimmed line, so a report can still say how big it was. */
+  length: number;
+  /** True when the line looks like key material rather than a mistake. */
+  keyMaterial: boolean;
+  /** SHA-256 prefix of the trimmed line; comparable, not reversible. */
+  digest: string;
 }
 
 export interface EnvFile {
@@ -42,7 +66,7 @@ export interface EnvFile {
   newline: "\n" | "\r\n";
   hasBom: boolean;
   /** Lines that are neither blank, comment, nor a valid KEY=value assignment. */
-  invalid: { line: number; text: string }[];
+  invalid: InvalidLine[];
 }
 
 /** Where a variable was read from in source code. */
@@ -138,8 +162,8 @@ export interface DiffReport {
   onlyB: DiffEntry[];
   changed: DiffChangedEntry[];
   /** Lines that are not a KEY=value assignment, per side. */
-  invalidA: { line: number; text: string }[];
-  invalidB: { line: number; text: string }[];
+  invalidA: InvalidLine[];
+  invalidB: InvalidLine[];
   same: number;
   identical: boolean;
 }

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { closesPemBlock, isPemBodyLine, opensPemBlock } from "./rules.js";
-import type { DuplicateKey, EnvEntry, EnvFile, Quote } from "./types.js";
-import { shortDigest } from "./util.js";
+import type { DuplicateKey, EnvEntry, EnvFile, InvalidLine, Quote } from "./types.js";
+import { describeInvalidLine, shortDigest } from "./util.js";
 
 const KEY_SRC = "[A-Za-z_][A-Za-z0-9_.-]*";
 const KEY_RE = new RegExp("^" + KEY_SRC + "$");
@@ -167,7 +167,7 @@ export function parseEnvText(text: string, options: ParseOptions = {}): EnvFile 
   const lines = body.split(/\r?\n/);
 
   const entries: EnvEntry[] = [];
-  const invalid: { line: number; text: string }[] = [];
+  const invalid: InvalidLine[] = [];
   const seen = new Map<string, number[]>();
   let pendingComments: string[] = [];
   let index = 0;
@@ -190,7 +190,8 @@ export function parseEnvText(text: string, options: ParseOptions = {}): EnvFile 
     pendingComments = [];
     const assignment = parseAt(lines, index - 1, strict, pathLabel);
     if (assignment === null) {
-      invalid.push({ line: lineNumber, text: trimmed });
+      // Never store the text: an unparseable line is where secrets hide.
+      invalid.push(describeInvalidLine(lineNumber, trimmed));
       continue;
     }
     index += assignment.extraLines;
@@ -207,7 +208,17 @@ export function parseEnvText(text: string, options: ParseOptions = {}): EnvFile 
     // is unparseable as a KEY=value line, so without this it would be filed as
     // "invalid" (noise) and, worse, never compared - which is how a rotated
     // private key used to look like "files are identical".
-    if (opensPemBlock(assignment.value)) {
+    //
+    // Two shapes have to be recognised, because both occur in the wild:
+    //   KEY=-----BEGIN ...-----   (the marker is the value)
+    //   KEY=                      (empty value, marker on the next line)
+    //   -----BEGIN ...-----
+    // The second is what `cat key.pem >> .env` produces, and missing it left the
+    // whole block unprotected. A third shape - a PEM block with no KEY above it
+    // at all - stays in `invalid`, where the descriptors carry digests only, so
+    // it is still comparable and still never printable.
+    const bareBegin = assignment.value === "" && opensPemBlock(lines[index] ?? "");
+    if (opensPemBlock(assignment.value) || bareBegin) {
       const consumed: string[] = [];
       let cursor = index;
       while (cursor < lines.length) {
@@ -219,7 +230,10 @@ export function parseEnvText(text: string, options: ParseOptions = {}): EnvFile 
       }
       if (consumed.length > 0) {
         entry.pemBodyDigest = shortDigest(consumed.join("\n"));
-        entry.pemLines = consumed.length;
+        // Count the key material only: the -----BEGIN----- and -----END-----
+        // markers are delimiters, not secrets, and a report that says "+4 more
+        // lines" for a three-line body is a number users learn to ignore.
+        entry.pemLines = consumed.filter((line) => !closesPemBlock(line) && !opensPemBlock(line)).length;
         index = cursor;
       }
     }

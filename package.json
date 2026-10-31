@@ -27,6 +27,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dev": "node --experimental-strip-types src/cli.ts",
+    "demo:fixtures": "node scripts/make-demo-app.mjs && node scripts/make-leaky-fixture.mjs",
     "prepack": "npm run build"
   },
   "keywords": [

@@ -4,7 +4,7 @@ import { formatValue, parseEnvFile, parseEnvText, renderAssignment, toRecord } f
 import { closesPemBlock, isPemBodyLine, isSensitiveValue, opensPemBlock } from "./rules.js";
 import { scanSource } from "./scan.js";
 import type { EnvEntry } from "./types.js";
-import { maskValue, toPosix } from "./util.js";
+import { looksLikeKeyMaterial, maskValue, toPosix } from "./util.js";
 
 export interface SyncOptions {
   /** Template file to read keys from. */
@@ -177,19 +177,66 @@ export function maskText(text: string, options: MaskOptions = {}): string {
     const index = lineNumber - 1;
     const original = lines[index];
     if (original === undefined) continue;
-    const sensitive = options.all === true || isSensitiveValue(entry.key, entry.value, { byKeyName: options.byKeyName });
+    // A marker inside the value is the tidy shape. The shape people actually
+    // create is `cat key.pem >> .env`, which leaves `KEY=` on one line and the
+    // bare `-----BEGIN ...-----` on the next. Both are PEM blocks even though
+    // neither value looks like anything: an empty value is not sensitive by any
+    // heuristic, and a lowercase label (`-----begin rsa private key-----`) is
+    // legal RFC 7468 that the value rules do not recognise.
+    const pemHeader =
+      opensPemBlock(entry.value) || (entry.value.trim() === "" && opensPemBlock(lines[index + 1] ?? ""));
+    // The value alone decides this: a PEM body is a secret no matter what the
+    // key is called, so --all and byKeyName must not change the outcome.
+    const sensitive =
+      options.all === true || pemHeader || isSensitiveValue(entry.key, entry.value, { byKeyName: options.byKeyName });
     if (!sensitive) continue;
+    if (pemHeader) maskPemBody(lines, index + 1);
     const masked = maskValue(entry.value);
     const eq = original.indexOf("=");
     if (eq === -1) continue;
     const prefix = original.slice(0, eq + 1);
     lines[index] = prefix + (entry.quote === "none" ? masked : formatValue(masked, entry.quote));
-    // The value alone decides this: a PEM body is a secret no matter what the
-    // key is called, so --all and byKeyName must not change the outcome.
-    if (opensPemBlock(entry.value)) maskPemBody(lines, index + 1);
   }
+  // A line that is not a KEY=value assignment still gets its secrets masked.
+  // The usual cause is a typo - `DATABASE_URL postgres://user:pw@host/db` with
+  // the "=" missing - and a mask command that echoes that line back in clear is
+  // worse than useless, because the caller trusts it enough to paste the output.
+  for (const bad of file.invalid) {
+    const index = bad.line - 1;
+    const original = lines[index];
+    if (original === undefined) continue;
+    lines[index] = maskInvalidLine(original, options.byKeyName);
+  }
+
   const joined = lines.join(newline);
   return file.hasBom ? "\uFEFF" + joined : joined;
+}
+
+/**
+ * Mask the secrets on a line that the parser could not read as a key/value pair.
+ *
+ * Key material goes wholesale: there is no structure to preserve and a partial
+ * mask on base64 hands out the rest. Everything else is masked token by token,
+ * using the token before it as a key name so `DB_PASSWORD hunter2` (missing "=")
+ * still loses its a value.
+ */
+function maskInvalidLine(line: string, byKeyName: boolean | undefined): string {
+  const trimmed = line.trim();
+  if (trimmed === "") return line;
+  const leading = line.slice(0, line.length - line.trimStart().length);
+  if (looksLikeKeyMaterial(trimmed)) return leading + maskValue(trimmed);
+  let previous = "";
+  const body = line
+    .slice(leading.length)
+    .split(/(\s+)/)
+    .map((token) => {
+      if (token.trim() === "") return token;
+      const masked = isSensitiveValue(previous, token, { byKeyName }) ? maskValue(token) : token;
+      previous = token;
+      return masked;
+    })
+    .join("");
+  return leading + body;
 }
 
 /**
@@ -203,6 +250,9 @@ function maskPemBody(lines: string[], start: number): void {
   for (let index = start; index < lines.length; index += 1) {
     const line = lines[index];
     if (line === undefined) return;
+    // A blank line inside a pasted key ends nothing. Stopping there used to be
+    // the difference between a masked block and the whole key on stdout.
+    if (line.trim() === "") continue;
     if (!isPemBodyLine(line)) return;
     const closes = closesPemBlock(line);
     lines[index] = maskValue(line.trim());

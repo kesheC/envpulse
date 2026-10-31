@@ -72,10 +72,10 @@ Options:
   --json              Machine readable output
   --no-color          Disable ANSI colours
 `,
-  mask: `envpulse mask [options] < input.env
+  mask: `envpulse mask [options] [file]
 
-Reads env text from stdin and writes it back with sensitive values masked.
-Safe for pasting into an issue or a screenshot.
+Reads env text from stdin (or from <file>) and writes it back with sensitive
+values masked. Safe for pasting into an issue or a screenshot.
 
 Options:
   --all               Mask every value, not only the sensitive ones
@@ -258,7 +258,11 @@ function cmdSync(args: ParsedArgs): number {
 }
 
 function cmdMask(args: ParsedArgs): number {
-  const input = readStdin();
+  // Silently ignoring a path argument meant `envpulse mask .env` exited 0 with
+  // no output and no change - indistinguishable from success. Reading a named
+  // file is the obvious expectation, so do that.
+  const named = args.positionals[0];
+  const input = named === undefined ? readStdin() : readNamedFile(named);
   if (flag(args.flags, "reveal")) {
     process.stdout.write(input);
     return 0;
@@ -282,6 +286,14 @@ function cmdInit(args: ParsedArgs): number {
   if (flag(args.flags, "dry-run")) process.stdout.write(result.content);
   else process.stdout.write(`wrote ${result.out} with ${result.keys.length} key(s)\n`);
   return 0;
+}
+
+function readNamedFile(file: string): string {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    fail(`cannot read ${file}`);
+  }
 }
 
 function readStdin(): string {
