@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-01
+
+### Changed
+
+- **README examples showed a version the tarball no longer ships.** The released tarball bundles the README, so a stale `0.1.2` in sample transcripts and JSON output was shipping to users. Every version string in it now matches the package.
+- The install section documents the `envpulse.tgz.sha256` checksum every release publishes, so a download can be verified before it is executed.
+
 ## [0.1.3] - 2026-11-01
 
 ### Fixed
@@ -89,8 +96,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: Ubuntu and Windows, Node 20 and 22.
 - Zero runtime dependencies.
 
+[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/kesheC/envpulse/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/kesheC/envpulse/compare/v0.1.2...v0.1.3
-[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.3...HEAD
 [0.1.2]: https://github.com/kesheC/envpulse/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/kesheC/envpulse/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/kesheC/envpulse/releases/tag/v0.1.0
