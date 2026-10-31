@@ -99,7 +99,7 @@ Real output, run against the `examples/demo-app` fixture in this repository:
 
 ```text
 $ envpulse check --cwd examples/demo-app
-envpulse check  (v0.1.0)
+envpulse check  (v0.1.1)
 cwd: E:\deepseek_workspace\github\projects\envpulse\examples\demo-app
 
 env files
@@ -183,7 +183,7 @@ Values are masked by default. `diff` exits `1` when the files differ (same conve
 
 ```text
 $ envpulse diff .env .env.example
-envpulse diff  (v0.1.0)
+envpulse diff  (v0.1.1)
 A: .env (5 keys)
 B: .env.example (6 keys)
 
@@ -277,7 +277,7 @@ Every command accepts `--json` for CI and dashboards:
 $ envpulse check --cwd examples/demo-app --json
 {
   "tool": "envpulse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "command": "check",
   "cwd": ".../examples/demo-app",
   "envFiles": [
@@ -308,7 +308,7 @@ $ envpulse check --cwd examples/demo-app --json
 
 ```text
 $ envpulse check
-envpulse check  (v0.1.0)
+envpulse check  (v0.1.1)
 cwd: E:\deepseek_workspace\github
 
 no .env files found - nothing to cross-check.
