@@ -26,8 +26,9 @@ Linters don't check this. `dotenv` doesn't check this. Reviewers miss it in a 40
 
 ## Install
 
-`envpulse` is **not published to the npm registry** — the name there belongs to an
-unrelated package. Every release ships a ready-to-install tarball instead:
+`envpulse` is **not published to the npm registry.** The name is still free; this
+project just has no publishing credentials yet. Every release ships a
+ready-to-install tarball instead:
 
 ```bash
 # global install, straight from the latest release
@@ -112,7 +113,7 @@ The working directory is printed as `<repo>/...` here; your own machine prints i
 
 ```text
 $ envpulse check --cwd examples/demo-app
-envpulse check  (v0.1.5)
+envpulse check  (v0.1.6)
 cwd: <repo>/examples/demo-app
 
 env files
@@ -196,7 +197,7 @@ Values are masked by default. `diff` exits `1` when the files differ (same conve
 
 ```text
 $ envpulse diff .env .env.example
-envpulse diff  (v0.1.5)
+envpulse diff  (v0.1.6)
 A: .env (5 keys)
 B: .env.example (6 keys)
 
@@ -290,7 +291,7 @@ Every command accepts `--json` for CI and dashboards:
 $ envpulse check --cwd examples/demo-app --json
 {
   "tool": "envpulse",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "command": "check",
   "cwd": ".../examples/demo-app",
   "envFiles": [
@@ -321,7 +322,7 @@ $ envpulse check --cwd examples/demo-app --json
 
 ```text
 $ envpulse check
-envpulse check  (v0.1.5)
+envpulse check  (v0.1.6)
 cwd: <workspace>
 
 no .env files found - nothing to cross-check.
@@ -424,8 +425,8 @@ ESLint 不管这些，`dotenv` 不管这些，人工 review 在 400 行 diff 里
 
 ### 安装
 
-`envpulse` **没有发布到 npm registry**（那个名字被别人占了）。每个 release 都附带
-可直接安装的 tarball：
+`envpulse` **没有发布到 npm registry**。这个名字目前还是空的，只是本项目还没有发布凭据。
+每个 release 都附带可直接安装的 tarball：
 
 ```bash
 # 全局安装：直接从最新 release 装
