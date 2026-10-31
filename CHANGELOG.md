@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-01
+
 ### Fixed
 
 - **The README shipped the author's absolute paths.** Two sample transcripts printed a real local working directory. The released tarball bundles the README, so those paths were going out to every user; they are now `<repo>/...` and `<workspace>`, with a line saying only the path differs on your machine.
+- **The README claimed the npm name was taken.** It said the `envpulse` name on npm belonged to an unrelated package. It does not: `npm view envpulse` returns 404, the name is unregistered. The README now says this project has no publishing credentials yet, instead of blaming a squatter.
 
 ## [0.1.5] - 2026-11-01
 
@@ -106,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: Ubuntu and Windows, Node 20 and 22.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/kesheC/envpulse/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/kesheC/envpulse/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/kesheC/envpulse/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/kesheC/envpulse/compare/v0.1.2...v0.1.3

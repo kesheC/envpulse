@@ -1,6 +1,6 @@
 {
   "name": "envpulse",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Audit .env drift and secret leaks in your repository - zero dependencies",
   "type": "module",
   "bin": {
