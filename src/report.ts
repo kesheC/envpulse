@@ -17,6 +17,7 @@ const LABEL: Record<FindingCode, string> = {
   DUPLICATE: "DUPLICATE",
   UNSAFE: "UNSAFE",
   EMPTY: "EMPTY",
+  INVALID: "INVALID",
 };
 
 const SEVERITY_TAG: Record<Severity, string> = {
@@ -46,12 +47,15 @@ function painter(enabled: boolean) {
 
 /** Group findings by code, keeping the canonical order. */
 export function groupFindings(findings: Finding[]): Map<FindingCode, Finding[]> {
-  const order: FindingCode[] = ["MISSING", "UNSAFE", "DRIFT", "DUPLICATE", "EMPTY", "UNUSED"];
+  const order: FindingCode[] = ["MISSING", "UNSAFE", "DRIFT", "DUPLICATE", "INVALID", "EMPTY", "UNUSED"];
   const map = new Map<FindingCode, Finding[]>();
   for (const code of order) {
     const bucket = findings.filter((f) => f.code === code);
     if (bucket.length > 0) {
-      bucket.sort((a, b) => a.key.localeCompare(b.key));
+      // INVALID findings are anchored to a line number, so reading them in file
+      // order beats alphabetical order.
+      if (code === "INVALID") bucket.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
+      else bucket.sort((a, b) => a.key.localeCompare(b.key));
       map.set(code, bucket);
     }
   }
@@ -167,6 +171,27 @@ export function formatDiffReport(report: DiffReport, options: FormatOptions = {}
       if (entry.pemLines !== undefined) lines.push(c.dim(`      + ${entry.pemLines} more line(s) of key material`));
     }
     lines.push("");
+  }
+
+  // Lines that are not a KEY=value assignment are not keys, but they are still
+  // content: showing them is the difference between "identical" and "a typo
+  // swallowed a variable".
+  const sameInvalid =
+    report.invalidA.length === report.invalidB.length &&
+    report.invalidA.every((line, index) => line.text === report.invalidB[index]?.text);
+  if (!sameInvalid) {
+    const sides: { label: string; rows: { line: number; text: string }[] }[] = [
+      { label: "A", rows: report.invalidA },
+      { label: "B", rows: report.invalidB },
+    ];
+    for (const side of sides) {
+      if (side.rows.length === 0) continue;
+      lines.push(c.bold(`not a KEY=value assignment in ${side.label} (${side.rows.length})`));
+      for (const row of side.rows) {
+        lines.push(`  ${c.cyan("-")} line ${row.line}: ${row.text}`);
+      }
+      lines.push("");
+    }
   }
 
   lines.push(c.dim(`${report.same} key(s) identical`));

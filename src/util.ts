@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -18,6 +19,17 @@ export function shannonEntropy(value: string): number {
     entropy -= p * Math.log2(p);
   }
   return entropy;
+}
+
+/**
+ * Short, stable fingerprint of a piece of text.
+ *
+ * Used to compare things that must never be printed: a PEM body lives in the
+ * file but not in any env value, so the only way diff can notice a rotated key
+ * is by comparing a digest.
+ */
+export function shortDigest(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex").slice(0, 16);
 }
 
 /** Mask a secret so it is still recognisable but not copyable. */

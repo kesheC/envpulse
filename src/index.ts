@@ -84,4 +84,11 @@ export {
 } from "./report.js";
 export type { FormatOptions } from "./report.js";
 
-export { maskValue, gitTrackedFiles, shannonEntropy, isEnvFileName, isExampleEnvFileName } from "./util.js";
+export {
+  maskValue,
+  shortDigest,
+  gitTrackedFiles,
+  shannonEntropy,
+  isEnvFileName,
+  isExampleEnvFileName,
+} from "./util.js";

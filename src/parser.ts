@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
+import { closesPemBlock, isPemBodyLine, opensPemBlock } from "./rules.js";
 import type { DuplicateKey, EnvEntry, EnvFile, Quote } from "./types.js";
+import { shortDigest } from "./util.js";
 
 const KEY_SRC = "[A-Za-z_][A-Za-z0-9_.-]*";
 const KEY_RE = new RegExp("^" + KEY_SRC + "$");
@@ -192,7 +194,7 @@ export function parseEnvText(text: string, options: ParseOptions = {}): EnvFile 
       continue;
     }
     index += assignment.extraLines;
-    entries.push({
+    const entry: EnvEntry = {
       key: assignment.key,
       value: assignment.value,
       rawValue: assignment.rawValue,
@@ -200,7 +202,28 @@ export function parseEnvText(text: string, options: ParseOptions = {}): EnvFile 
       quote: assignment.quote,
       exported: assignment.exported,
       comments,
-    });
+    };
+    // A value can only hold the opening line of a PEM block. Everything below it
+    // is unparseable as a KEY=value line, so without this it would be filed as
+    // "invalid" (noise) and, worse, never compared - which is how a rotated
+    // private key used to look like "files are identical".
+    if (opensPemBlock(assignment.value)) {
+      const consumed: string[] = [];
+      let cursor = index;
+      while (cursor < lines.length) {
+        const raw = lines[cursor] ?? "";
+        if (!isPemBodyLine(raw)) break;
+        consumed.push(raw);
+        cursor += 1;
+        if (closesPemBlock(raw)) break;
+      }
+      if (consumed.length > 0) {
+        entry.pemBodyDigest = shortDigest(consumed.join("\n"));
+        entry.pemLines = consumed.length;
+        index = cursor;
+      }
+    }
+    entries.push(entry);
     const at = seen.get(assignment.key);
     if (at === undefined) seen.set(assignment.key, [lineNumber]);
     else at.push(lineNumber);

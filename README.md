@@ -2,7 +2,7 @@
 
 > **Your `.env` files are lying to you. envpulse finds out in one command.**
 
-`envpulse` is a zero-dependency CLI that cross-checks your `.env` files against the variables your source code actually reads. It reports **missing**, **unused**, **drifting**, **duplicated**, and **leaked** values — including secrets committed by accident into `.env.example`.
+`envpulse` is a zero-dependency CLI that cross-checks your `.env` files against the variables your source code actually reads. It reports **missing**, **unused**, **drifting**, **duplicated**, and **leaked** values — including secrets committed by accident into `.env.example` — and refuses to stay quiet about a line that is not a `KEY=value` assignment at all.
 
 [![CI](https://github.com/kesheC/envpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/kesheC/envpulse/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/kesheC/envpulse?color=blue)](https://github.com/kesheC/envpulse/releases)
@@ -101,6 +101,7 @@ Cross-checks every `.env*` file in the project against the variables that the so
 | `DUPLICATE` | medium | The same key is assigned twice in one file — the last one silently wins. |
 | `UNSAFE` | **high** | A value that will reach other people looks like a live secret (see the three cases below). |
 | `EMPTY` | low | Declared with no value, so it will be `undefined` at runtime. |
+| `INVALID` | medium | A line is not a `KEY=value` assignment, so it is silently ignored — the variable you meant to set does not exist. |
 
 `UNSAFE` has exactly three cases, because "a secret leaked" always means "it can reach someone else":
 
@@ -109,6 +110,45 @@ Cross-checks every `.env*` file in the project against the variables that the so
 3. **A real secret in a plain `.env` that git does not track** — that is what `.env` is *for*. No finding, no noise.
 
 Case 2 is decided by one `git ls-files` call for the whole run. If git is missing or the directory is not a repository, envpulse silently falls back to case 1 only — it never fails because of git.
+
+`INVALID` exists because a swallowed line is indistinguishable from a missing
+variable. Write `DATABASE_URL postgres://...` (no `=`) and the key simply does
+not exist; without this check the only symptom is a `MISSING` finding pointing
+at a line that is right there in front of you. It is **medium**, so it cannot
+turn a build red on its own:
+
+```text
+$ envpulse check --cwd /tmp/noequals
+envpulse check  (v0.1.6)
+cwd: <scratch>/noequals
+
+env files
+      env  .env  2 keys
+  example  .env.example  3 keys
+
+scanned 1 source file(s), 3 variable(s) read by code
+
+DRIFT (1)
+  [MED] DATABASE_URL
+         present in .env.example but not in .env
+         in .env.example, .env
+
+INVALID (1)
+  [MED] line 2  .env:2
+         not a valid KEY=value assignment - it is ignored, so any variable on this line is missing (maybe a missing "="?)
+
+
+0 high, 2 medium, 0 low  -> exit 0
+```
+
+> One caveat about this repository's own fixture: `examples/demo-app/.env` **is**
+> tracked by `git ls-files` (the demo needs a realistic `.env`), so it falls under
+> case 2. It survives on a technicality: its value is
+> `sk_test_51H8xQ2eZvKYlo2C9`, 25 characters in total and 17 after `sk_test_`,
+> while the `stripe-test-long` rule wants 20 body characters and the entropy rule
+> wants 32. Lengthen that value and the demo output below gains a `UNSAFE` row
+> with a different summary line. That is the intended behaviour, not an oversight
+> — the fixture really is a tracked `.env`.
 
 Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage. Drop it straight into CI:
 
@@ -234,6 +274,41 @@ changed values (4)
 ```
 
 Add `--reveal` when you really need the plaintext — it is never the default.
+
+A rotated key is a change even when the header is byte-identical, so `diff`
+digests the lines *underneath* a `-----BEGIN ... PRIVATE KEY-----` header
+(the body cannot fit in an env value) and compares that too. `--reveal` still
+never prints a PEM block:
+
+```text
+$ envpulse diff a.env b.env --reveal
+envpulse diff  (v0.1.6)
+A: a.env (1 keys)
+B: b.env (1 keys)
+
+changed values (1)
+  ~ PRIVATE_KEY
+      A: --****--
+      B: --****--
+      + 2 more line(s) of key material
+
+0 key(s) identical
+```
+
+And a file whose stray lines differ is not identical either — those lines are
+not keys, but they are content:
+
+```text
+$ envpulse diff junk.env junk2.env
+envpulse diff  (v0.1.6)
+A: junk.env (2 keys)
+B: junk2.env (2 keys)
+
+not a KEY=value assignment in A (1)
+  - line 2: DIFFERENT JUNK HERE
+
+2 key(s) identical
+```
 
 ### `envpulse sync --from <template> --to <target>` — fix the drift
 
@@ -425,7 +500,7 @@ note: template .env is not an example file - it may contain real values.
 
 ## How it works
 
-1. **Parse** (`src/parser.ts`). A real dotenv parser, not a regex split: `export` prefixes, single/double/unquoted values, inline `#` comments (respecting quotes), `\n` / `\t` / `\"` escapes, multi-line double-quoted values, UTF-8 BOM, and CRLF/LF detection. Unparseable lines are reported, never silently dropped.
+1. **Parse** (`src/parser.ts`). A real dotenv parser, not a regex split: `export` prefixes, single/double/unquoted values, inline `#` comments (respecting quotes), `\n` / `\t` / `\"` escapes, multi-line double-quoted values, UTF-8 BOM, and CRLF/LF detection. Unparseable lines are collected into `EnvFile.invalid`, surfaced as `INVALID` findings and shown in `diff`, never silently dropped. A value that opens a PEM block swallows its body lines and keeps a SHA-256 digest of them, which is what lets `diff` see a rotated key whose header did not change.
 2. **Scan** (`src/scan.ts`). Walks the tree deterministically (sorted), skipping `node_modules`, `.git`, `dist`, `build`, `venv`, and friends. Files are dispatched by extension:
    - `.js .mjs .cjs .ts .mts .cts .jsx .tsx` → `process.env.NAME`, `process.env["NAME"]`, `import.meta.env.NAME`, `Deno.env.get("NAME")`
    - `.py` → `os.environ["NAME"]`, `os.environ.get("NAME")`, `os.getenv("NAME")`
@@ -467,6 +542,10 @@ Types shipped in `dist/index.d.ts`: `EnvFile`, `EnvEntry`, `Finding`, `CheckRepo
 
 **It flagged a key my framework reads implicitly (Next.js, Vite, `NODE_ENV`).**  Declaring it in the template is the honest fix, since the framework does read it. `UNUSED` is low severity and never fails the build, so a false positive costs you nothing but a line of noise.
 
+**My build passes but a variable is `undefined` in production. Can envpulse catch that?**  Only if the file says so. A line like `DATABASE_URL postgres://...` (missing `=`) parses as nothing, so the key never exists — run the same command and you get an `INVALID` finding on that exact line, plus whatever falls out of it. Set `--json` and grep for the code.
+
+**What if I typo `--cwd`?**  It exits `2` with `--cwd ... does not exist` on stderr. A wrong path must never look like a clean bill of health.
+
 **Does `sync` delete keys?**  Never. Stale keys are reported and kept. `sync` only inserts lines.
 
 **Monorepo support?**  `check --cwd packages/api` works today. A `--workspace` flag is on the roadmap.
@@ -487,7 +566,7 @@ MIT © 2026 kesheC. See [LICENSE](LICENSE).
 
 > **你的 `.env` 文件在骗你。envpulse 用一条命令把它抓出来。**
 
-`envpulse` 是一个**零运行时依赖**的命令行工具（只用 Node.js 标准库），把 `.env` 文件和源码里真正读取的变量做交叉核对，报告 **缺失（MISSING）**、**未被使用（UNUSED）**、**文件间漂移（DRIFT）**、**重复定义（DUPLICATE）** 和 **真实密钥泄漏（UNSAFE）**。
+`envpulse` 是一个**零运行时依赖**的命令行工具（只用 Node.js 标准库），把 `.env` 文件和源码里真正读取的变量做交叉核对，报告 **缺失（MISSING）**、**未被使用（UNUSED）**、**文件间漂移（DRIFT）**、**重复定义（DUPLICATE）** 和 **真实密钥泄漏（UNSAFE）**；写成 `KEY value`（少一个等号）的行也不再被静默吞掉，而是报 **非法行（INVALID）**。
 
 ### 它解决什么问题
 
@@ -553,7 +632,7 @@ envpulse mask < .env                    # 贴到工单里也不会泄露
 
 | 命令 | 作用 |
 | --- | --- |
-| `check` | 体检：缺失 / 未使用 / 漂移 / 重复 / 泄漏 / 空值。有 high 级问题退出码为 `1`。 |
+| `check` | 体检：缺失 / 未使用 / 漂移 / 重复 / 非法行 / 泄漏 / 空值。有 high 级问题退出码为 `1`。 |
 | `diff <a> <b>` | 逐键对比两个 env 文件，**默认对值打码**，`--reveal` 才显示明文。 |
 | `sync --from --to` | 把模板里有、目标文件里没有的键**按模板顺序插入**；绝不删除、绝不改动已有行。 |
 | `mask` | 从 stdin 读 env 文本，把敏感值打码后输出。 |
@@ -568,7 +647,9 @@ envpulse mask < .env                    # 贴到工单里也不会泄露
 - **零依赖**是刻意的：安全工具自己成为供应链风险就很荒谬。整包 `npm pack` 出来 48 KB、解包 180 KB、36 个文件。
 - **`UNSAFE` 只有三种情况**：① 真密钥在模板文件（`.env.example` / `.env.sample` / `.env.template`）里 —— 模板本来就是给人提交的，一定是 high；② 真密钥在**被 git 跟踪**的普通 `.env` 里 —— 有人把它提交了，同样 high，报错信息会写明 `in a file tracked by git`；③ 真密钥在**没被 git 跟踪**的 `.env` 里 —— 那正是 `.env` 的用途，不报、不吵。跟踪状态整轮只跑一次 `git ls-files`；机器上没有 git、或者当前目录不是仓库时，静默退化为只查模板，绝不因为 git 而崩掉。
 - **打码看值，其次看名字**：`mask` 先判断值本身像不像密钥（带密码的连接串、PEM 私钥、高熵串……），再看键名里有没有 `SECRET` / `TOKEN` / `PASSWORD`。所以 `LOG_LEVEL=debug` 和无密码的 `DATABASE_URL` 保持可读，而键名叫 `DB`、值里带密码的照样打码。
-- **PEM 整块打码**：私钥塞不进一行 env 值 —— 赋值行被打了码、后面的密钥正文却原样输出，这正是最常见的泄漏方式。`mask` 会一路吞到 `-----END ...-----` 那一行；`diff` 共用同一套判断，即使加 `--reveal` 也不显示 PEM 头。
+- **PEM 整块打码，也整块比对**：私钥塞不进一行 env 值 —— 赋值行被打了码、后面的密钥正文却原样输出，这正是最常见的泄漏方式。`mask` 会一路吞到 `-----END ...-----` 那一行；`diff` 共用同一套判断，即使加 `--reveal` 也不显示 PEM 头。同时 `diff` 会为 PEM 正文算一个摘要参与比对，所以**只换了密钥正文、头没变**的轮换也能被发现，行数变了同样能。
+- **不吞掉看不懂的行**：一行既不是注释也不是 `KEY=value` 时，`check` 报 `INVALID`（medium，指向具体行号），`diff` 也不会再说「完全相同」。典型场景是把 `DATABASE_URL=...` 写成 `DATABASE_URL ...`：变量彻底消失，以前只会得到一个指向「缺失」的误导性报告。
+- **路径写错不是绿灯**：`check` / `init` 的 `--cwd` 会先校验目录存在，不存在就 `exit 2`，而不是打印「没找到 .env」然后退出 0。
 - **`sync` 只插入、不重写**：直接对原始文本做行拼接，所以注释、引号风格、CRLF 换行全部原样保留。
 - **占位符不算泄漏**：`changeme`、`xxxx`、`your-key-here`、`sk_test_...`、`AKIAIOSFODNN7EXAMPLE` 都会被放过。
 - **不臆造问题**：仓库里没有 `.env` 模板时，它明确告诉你「无从比对」并退出 `0`，而不是假装发现了问题。

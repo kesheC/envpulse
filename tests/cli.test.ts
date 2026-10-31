@@ -131,6 +131,26 @@ describe("cli", () => {
     expect(result.out).toContain("PORT=");
   });
 
+  // Regression: --cwd was resolved but never checked, so a typo produced a clean
+  // "no .env files found" report with exit 0 - a green CI for a path that does
+  // not exist.
+  it("exits 2 when --cwd does not exist", () => {
+    const dir = makeRepo({});
+    const missing = path.join(dir, "nope", "not", "here");
+    for (const command of ["check", "init"]) {
+      const result = run([command, "--cwd", missing, "--from-code"]);
+      expect(result.code).toBe(2);
+      expect(result.err).toContain("does not exist");
+      expect(result.out).toBe("");
+    }
+  });
+
+  it("exits 2 when --cwd points at a file instead of a directory", () => {
+    const dir = makeRepo({ "a.env": "A=1\n" });
+    const result = run(["check", "--cwd", path.join(dir, "a.env")]);
+    expect(result.code).toBe(2);
+    expect(result.err).toContain("not a directory");
+  });
   it("reports an unreadable input file as a usage error", () => {
     const dir = makeRepo({ "a.env": "A=1\n" });
     const result = run(["diff", path.join(dir, "a.env"), path.join(dir, "nope.env")]);

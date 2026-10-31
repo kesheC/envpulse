@@ -53,6 +53,46 @@ describe("diffFiles", () => {
     expect(text).toContain("more line(s) of key material");
   });
 
+  // Regression: the value of a PEM key stops at the header line, so a rotated
+  // key looked identical to the old one and diff said "files are identical".
+  it("sees a rotated PEM body even when the header is unchanged", () => {
+    const dir = makeRepo({
+      "a.env": ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "MIIEowIBAAKCAQEA1111111111", "-----END RSA PRIVATE KEY-----"].join("\n") + "\n",
+      "b.env": ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "MIIEowIBAAKCAQEA9999999999", "-----END RSA PRIVATE KEY-----"].join("\n") + "\n",
+    });
+    const report = diffFiles(path.join(dir, "a.env"), path.join(dir, "b.env"), "a.env", "b.env");
+    expect(report.identical).toBe(false);
+    expect(report.changed.map((e) => e.key)).toEqual(["PRIVATE_KEY"]);
+    // Still masked even though the caller did not ask for a reveal.
+    expect(formatDiffReport(report, { color: false })).not.toContain("MIIEowIBAAKCAQEA1111111111");
+  });
+
+  // Regression: a body that grew or shrank is a different key, but only the
+  // line count differs - the header is byte identical.
+  it("sees a PEM body whose line count changed", () => {
+    const dir = makeRepo({
+      "a.env": ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "AAAA", "-----END RSA PRIVATE KEY-----"].join("\n") + "\n",
+      "b.env":
+        ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "AAAA", "BBBB", "CCCC", "----" + "-END RSA PRIVATE KEY-----"].join("\n") + "\n",
+    });
+    const report = diffFiles(path.join(dir, "a.env"), path.join(dir, "b.env"), "a.env", "b.env");
+    expect(report.identical).toBe(false);
+    expect(report.changed.map((e) => e.key)).toEqual(["PRIVATE_KEY"]);
+    // B has three body lines plus the END line; the report quotes the larger side.
+    expect(report.changed[0]?.pemLines).toBe(4);
+  });
+
+  // Regression: lines that are not KEY=value assignments were dropped on the
+  // floor, so a file with junk in the middle compared equal to one without it.
+  it("does not call two files identical when their junk lines differ", () => {
+    const dir = makeRepo({ "junk.env": "GOOD=1\nDIFFERENT JUNK HERE\nGOOD2=2\n", "junk2.env": "GOOD=1\nGOOD2=2\n" });
+    const report = diffFiles(path.join(dir, "junk.env"), path.join(dir, "junk2.env"), "junk.env", "junk2.env");
+    expect(report.identical).toBe(false);
+    expect(report.invalidA.map((line) => line.text)).toEqual(["DIFFERENT JUNK HERE"]);
+    expect(report.invalidB).toEqual([]);
+    const text = formatDiffReport(report, { color: false });
+    expect(text).toContain("DIFFERENT JUNK HERE");
+  });
   it("returns an empty diff for identical files", () => {
     const dir = makeRepo({ "a.env": "A=1\nB=2\n", "b.env": "A=1\nB=2\n" });
     const report = diffFiles(path.join(dir, "a.env"), path.join(dir, "b.env"), "a.env", "b.env");

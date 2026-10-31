@@ -18,6 +18,14 @@ export interface EnvEntry {
   exported: boolean;
   /** Comment lines (trimmed, leading `#` kept) directly above the assignment. */
   comments: string[];
+  /**
+   * Digest of the raw lines that follow a `KEY=-----BEGIN ...` header, when the
+   * value opens a PEM block. The body never fits in a value, so this is what
+   * makes two keys comparable - and it is a digest so it is safe to print.
+   */
+  pemBodyDigest?: string;
+  /** How many raw lines the PEM body occupied, closing line included. */
+  pemLines?: number;
 }
 
 export interface DuplicateKey {
@@ -57,7 +65,8 @@ export type FindingCode =
   | "DRIFT"
   | "DUPLICATE"
   | "UNSAFE"
-  | "EMPTY";
+  | "EMPTY"
+  | "INVALID";
 
 export interface Finding {
   code: FindingCode;
@@ -128,6 +137,9 @@ export interface DiffReport {
   onlyA: DiffEntry[];
   onlyB: DiffEntry[];
   changed: DiffChangedEntry[];
+  /** Lines that are not a KEY=value assignment, per side. */
+  invalidA: { line: number; text: string }[];
+  invalidB: { line: number; text: string }[];
   same: number;
   identical: boolean;
 }

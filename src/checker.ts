@@ -123,6 +123,10 @@ function severityFor(code: FindingCode): Severity {
       return "medium";
     case "EMPTY":
       return "low";
+    case "INVALID":
+      // A swallowed line usually means a variable the app expects does not exist,
+      // but it may also be a stray comment-ish line, so it must not fail the run.
+      return "medium";
     case "UNUSED":
       return "low";
     default:
@@ -239,6 +243,20 @@ export function checkProject(options: CheckOptions): CheckReport {
         line: dup.lines[0],
       });
     }
+    // A line that is not a KEY=value assignment is content the user wrote and the
+    // tool cannot see. Silence here is how "DATABASE_URL postgres://..." turns
+    // into a phantom MISSING finding for a variable that is right there.
+    for (const bad of file.invalid) {
+      const more = file.invalid.length > 1 ? ` (${file.invalid.length} such lines in this file)` : "";
+      findings.push({
+        code: "INVALID",
+        severity: severityFor("INVALID"),
+        key: `line ${bad.line}`,
+        message: `not a valid KEY=value assignment - it is ignored, so any variable on this line is missing (maybe a missing "="?)${more}`,
+        file: p.file,
+        line: bad.line,
+      });
+    }
     const seenEmpty = new Set<string>();
     const gitTracked = tracked !== null && tracked.has(p.file);
     for (const entry of file.entries) {
@@ -289,7 +307,7 @@ export function checkProject(options: CheckOptions): CheckReport {
   };
 }
 
-const CODE_ORDER: FindingCode[] = ["UNSAFE", "MISSING", "DRIFT", "DUPLICATE", "EMPTY", "UNUSED"];
+const CODE_ORDER: FindingCode[] = ["UNSAFE", "MISSING", "DRIFT", "DUPLICATE", "INVALID", "EMPTY", "UNUSED"];
 const SEVERITY_INDEX: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
 
 export function compareFindings(a: Finding, b: Finding): number {

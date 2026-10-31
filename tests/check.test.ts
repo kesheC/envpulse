@@ -204,6 +204,25 @@ describe("checkProject", () => {
     expect(report.findings.filter((f) => f.code === "UNSAFE")).toHaveLength(0);
   });
 
+  // Regression: a line that is not a KEY=value assignment was dropped silently,
+  // so "DATABASE_URL postgres://..." (missing "=") vanished and the variable was
+  // then reported as MISSING - pointing at the wrong problem entirely.
+  it("reports INVALID for a line that is not a KEY=value assignment", () => {
+    const dir = makeRepo({
+      ".env.example": "PORT=3000\n",
+      "src/app.ts": "process.env.PORT;\n",
+      ".env": "PORT=3000\nDATABASE_URL postgres://localhost/app\n",
+    });
+    const report = checkProject({ cwd: dir });
+    const invalid = report.findings.filter((f) => f.code === "INVALID");
+    expect(invalid).toHaveLength(1);
+    expect(invalid[0]?.file).toBe(".env");
+    expect(invalid[0]?.line).toBe(2);
+    expect(invalid[0]?.severity).toBe("medium");
+    expect(invalid[0]?.message).toContain("not a valid KEY=value assignment");
+    // A medium finding must not turn the build red on its own.
+    expect(report.exitCode).toBe(0);
+  });
   it("reports EMPTY as a low severity finding", () => {
     const dir = makeRepo({ ".env.example": "A=\n", "src/app.ts": "process.env.A;\n" });
     const report = checkProject({ cwd: dir });

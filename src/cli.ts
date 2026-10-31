@@ -185,8 +185,25 @@ function jsonReplacer(_key: string, value: unknown): unknown {
   return value;
 }
 
-function cmdCheck(args: ParsedArgs): number {
+/**
+ * `--cwd` used to be resolved but never checked, so a typo produced a cheerful
+ * "no .env files found" report and exit 0 - a green CI for a path that does not
+ * exist. Anything that reads the tree must call this first.
+ */
+function resolveCwd(args: ParsedArgs): string {
   const cwd = path.resolve(stringFlag(args.flags, "cwd", "."));
+  let isDirectory = false;
+  try {
+    isDirectory = statSync(cwd).isDirectory();
+  } catch {
+    fail(`--cwd ${cwd} does not exist`);
+  }
+  if (!isDirectory) fail(`--cwd ${cwd} is not a directory`);
+  return cwd;
+}
+
+function cmdCheck(args: ParsedArgs): number {
+  const cwd = resolveCwd(args);
   const template = typeof args.flags.template === "string" ? args.flags.template : undefined;
   const report = checkProject({
     cwd,
@@ -255,7 +272,7 @@ function cmdMask(args: ParsedArgs): number {
 }
 
 function cmdInit(args: ParsedArgs): number {
-  const cwd = path.resolve(stringFlag(args.flags, "cwd", "."));
+  const cwd = resolveCwd(args);
   const out = stringFlag(args.flags, "out", ".env.example");
   const result = initFromCode({ cwd, out, force: flag(args.flags, "force"), dryRun: flag(args.flags, "dry-run") });
   if (flag(args.flags, "json")) {
