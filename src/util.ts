@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -24,6 +25,36 @@ export function maskValue(value: string): string {
   if (value === "") return "";
   if (value.length <= 8) return "****";
   return value.slice(0, 2) + "****" + value.slice(-2);
+}
+
+/**
+ * Every path git tracks in `cwd`, normalised to forward slashes.
+ *
+ * Returns null when git cannot answer (no git binary, not a repository,
+ * dubious ownership). None of those are errors for envpulse: the caller just
+ * falls back to the rules that do not need git.
+ */
+export function gitTrackedFiles(cwd: string): Set<string> | null {
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" };
+  let result;
+  try {
+    result = spawnSync("git", ["-c", "core.quotepath=false", "ls-files", "-z"], {
+      cwd,
+      env,
+      encoding: "buffer",
+      maxBuffer: 64 * 1024 * 1024,
+      windowsHide: true,
+    });
+  } catch {
+    return null;
+  }
+  if (result.error !== undefined && result.error !== null) return null;
+  if (result.status !== 0) return null;
+  const tracked = new Set<string>();
+  for (const entry of String(result.stdout ?? "").split("\0")) {
+    if (entry !== "") tracked.add(entry);
+  }
+  return tracked;
 }
 
 /** Directories that never contain application source or env files. */

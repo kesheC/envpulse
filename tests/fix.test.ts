@@ -38,6 +38,21 @@ describe("diffFiles", () => {
     expect(formatDiffReport(revealed, { color: false })).toContain("supersecretvalue");
   });
 
+  // Regression: a PEM header is the only part of the key that fits in one
+  // .env value, so revealing it with --reveal handed out the block opener.
+  it("keeps PEM block headers masked even when revealing", () => {
+    const aText = ["PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----", "AAAAbody1", "-----END RSA PRIVATE KEY-----", "TOKEN=plainvalue123"].join("\n") + "\n";
+    const bText = ["PRIVATE_KEY=-----BEGIN OPENSSH PRIVATE KEY-----", "BBBBbody2", "-----END OPENSSH PRIVATE KEY-----", "TOKEN=othervalue456"].join("\n") + "\n";
+    const dir = makeRepo({ "a.env": aText, "b.env": bText });
+    const revealed = diffFiles(path.join(dir, "a.env"), path.join(dir, "b.env"), "a.env", "b.env", { reveal: true });
+    const text = formatDiffReport(revealed, { color: false });
+    expect(text).toContain("plainvalue123");
+    expect(text).toContain("othervalue456");
+    expect(text).not.toContain("BEGIN RSA PRIVATE KEY");
+    expect(text).not.toContain("BEGIN OPENSSH PRIVATE KEY");
+    expect(text).toContain("more line(s) of key material");
+  });
+
   it("returns an empty diff for identical files", () => {
     const dir = makeRepo({ "a.env": "A=1\nB=2\n", "b.env": "A=1\nB=2\n" });
     const report = diffFiles(path.join(dir, "a.env"), path.join(dir, "b.env"), "a.env", "b.env");
@@ -56,6 +71,50 @@ describe("maskText", () => {
     expect(out).toContain("API_KEY=");
     expect(out).not.toContain(stripeShort);
     expect(out).toContain("DEBUG=true");
+  });
+
+  // Regression: a PEM key body spans lines, so masking only the assignment line
+  // leaked the key material in clear.
+  it("masks every line of a multi-line PEM block", () => {
+    const input =
+      [
+        "PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----",
+        "MIIEowIBAAKCAQEAsecretbody1234",
+        "AAAABBBBCCCCDDDDEEEEFFFF",
+        "-----END RSA PRIVATE KEY-----",
+        "OTHER=x",
+      ].join("\n") + "\n";
+    const out = maskText(input);
+    expect(out).not.toContain("MIIEowIBAAKCAQEAsecretbody1234");
+    expect(out).not.toContain("AAAABBBBCCCCDDDDEEEEFFFF");
+    expect(out).not.toContain("-----END RSA PRIVATE KEY-----");
+    expect(out).toContain("PRIVATE_KEY=");
+    expect(out).toContain("OTHER=x");
+    expect(out.split("\n").filter((line) => line !== "")).toHaveLength(5);
+  });
+
+  // Regression: the leak flag is value-driven, so a PEM blob under a harmless
+  // key name (CERT_BLOB, DB_PASSWORD...) must be masked too.
+  it("masks a PEM block that starts on a later line under a dull key name", () => {
+    const input =
+      [
+        "CERT=-----BEGIN CERTIFICATE-----",
+        "MIICertBodyLineOne",
+        "MIICertBodyLineTwo",
+        "-----END CERTIFICATE-----",
+        "DEBUG=true",
+      ].join("\n") + "\n";
+    const out = maskText(input);
+    expect(out).not.toContain("MIICertBodyLineOne");
+    expect(out).not.toContain("MIICertBodyLineTwo");
+    expect(out).not.toContain("-----END CERTIFICATE-----");
+    expect(out).toContain("DEBUG=true");
+  });
+
+  it("leaves a single-line value alone when the PEM block is already closed", () => {
+    const input = "SIGNING_NOTE=the -----BEGIN line is documented in the README\n";
+    const out = maskText(input);
+    expect(out).toBe(input);
   });
 });
 

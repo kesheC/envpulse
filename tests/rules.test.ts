@@ -92,6 +92,17 @@ describe("isHighEntropySecret", () => {
     expect(isHighEntropySecret("abcdefghijklmnopqrstuvwxyzabcdef")).toBe(false);
   });
 
+  // Regression: a credential-free connection string is long and mixed but not
+  // random, so it used to be reported as a generated secret and masked away.
+  it("ignores structured connection strings without credentials", () => {
+    expect(isHighEntropySecret("postgres://localhost:5432/demo_dev")).toBe(false);
+    expect(isHighEntropySecret("https://api.example.com/v1/webhooks/abcdefghijklmnop")).toBe(false);
+  });
+
+  it("still flags a connection string that carries a password", () => {
+    expect(isHighEntropySecret("postgres://admin:hunter2hunter2@db.internal:5432/prod")).toBe(true);
+  });
+
   it("computes shannon entropy with the 0 bit / 1 bit / 2 bit anchors", () => {
     expect(shannonEntropy("")).toBe(0);
     expect(shannonEntropy("aaaa")).toBe(0);

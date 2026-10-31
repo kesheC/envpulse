@@ -38,6 +38,10 @@ export function isHighEntropySecret(value: string): boolean {
   if (PLACEHOLDER_RE.test(value)) return false;
   if (/^[\d.]+$/.test(value)) return false;
   if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value) && !/[A-Z]/.test(value)) return false;
+  // A connection string is structured, not random: its entropy comes from the
+  // host name and path. Only the credentialed form is a leak, and the dedicated
+  // db-url-with-password rule already covers that case.
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) && !/\/\/[^/@\s]*:[^/@\s]+@/.test(value)) return false;
   const hasUpper = /[A-Z]/.test(value);
   const hasLower = /[a-z]/.test(value);
   const hasDigit = /[0-9]/.test(value);
@@ -70,6 +74,34 @@ export interface SensitiveKeyOptions {
 
 /** Key names that usually carry credentials. */
 const SECRET_KEY_RE = /(SECRET|TOKEN|PASSWORD|PASSWD|PWD|API[_-]?KEY|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CREDENTIAL|AUTH|SIGNATURE|SALT|CERT)/i;
+
+/**
+ * True when a line is the body of a PEM block rather than an assignment.
+ *
+ * A .env cannot hold a real PEM in one value - the key is pasted as a raw
+ * multi-line block right after `PRIVATE_KEY=-----BEGIN ...-----  `, so the
+ * following lines parse as unassignable text. mask and diff both need to treat
+ * that whole run as one secret, therefore they share this predicate.
+ */
+export function isPemBodyLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed === "" || trimmed.startsWith("#")) return false;
+  if (/^[A-Za-z_][A-Za-z0-9_.-]*\s*=/.test(trimmed)) return false;
+  return true;
+}
+
+/** Marks the first line of a PEM block, either bare or as an env value. */
+const PEM_BEGIN_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|-----BEGIN CERTIFICATE-----/;
+
+/** True when this line opens a PEM block. */
+export function opensPemBlock(line: string): boolean {
+  return PEM_BEGIN_RE.test(line);
+}
+
+/** True when this line closes a PEM block. */
+export function closesPemBlock(line: string): boolean {
+  return /-----END [A-Z0-9 ]*PRIVATE KEY-----|-----END CERTIFICATE-----/.test(line);
+}
 
 /** True when a value should never be pasted into a screenshot. */
 export function isSensitiveValue(key: string, value: string, options: SensitiveKeyOptions = {}): boolean {

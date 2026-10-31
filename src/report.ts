@@ -164,6 +164,7 @@ export function formatDiffReport(report: DiffReport, options: FormatOptions = {}
       lines.push(`  ${c.yellow("~")} ${entry.key}`);
       lines.push(c.dim(`      A: ${entry.a}`));
       lines.push(c.dim(`      B: ${entry.b}`));
+      if (entry.pemLines !== undefined) lines.push(c.dim(`      + ${entry.pemLines} more line(s) of key material`));
     }
     lines.push("");
   }

@@ -7,6 +7,7 @@
 
 export type {
   CheckCounts,
+  DiffChangedEntry,
   CheckEnvFileInfo,
   CheckReport,
   DiffEntry,
@@ -48,10 +49,13 @@ export type { ScanOptions, SourceKind } from "./scan.js";
 
 export {
   UNSAFE_RULES,
+  closesPemBlock,
   isHighEntropySecret,
+  isPemBodyLine,
   isPlaceholder,
   isSensitiveValue,
   matchUnsafe,
+  opensPemBlock,
 } from "./rules.js";
 export type { SensitiveKeyOptions, UnsafeRule } from "./rules.js";
 
@@ -79,3 +83,5 @@ export {
   groupFindings,
 } from "./report.js";
 export type { FormatOptions } from "./report.js";
+
+export { maskValue, gitTrackedFiles, shannonEntropy, isEnvFileName, isExampleEnvFileName } from "./util.js";

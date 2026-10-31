@@ -11,7 +11,7 @@ import type {
   FindingCode,
   Severity,
 } from "./types.js";
-import { isEnvFileName, isExampleEnvFileName, readTextFile, toPosix, walkTree } from "./util.js";
+import { gitTrackedFiles, isEnvFileName, isExampleEnvFileName, readTextFile, toPosix, walkTree } from "./util.js";
 import { VERSION } from "./report.js";
 
 export interface CheckOptions {
@@ -86,10 +86,35 @@ export function pickTemplate(files: string[], explicit?: string): string | undef
   return ranked[0];
 }
 
-function severityFor(code: FindingCode, extra?: string): Severity {
+/**
+ * Where an UNSAFE finding applies, if anywhere.
+ *
+ * A secret is only a leak when it can reach someone else:
+ * - an example/template file is meant to be committed, so the value is public;
+ * - a plain .env only counts once git tracks it - an ignored local .env is the
+ *   whole point of .env and must not spam the report.
+ */
+function unsafeLocation(
+  example: boolean,
+  tracked: boolean,
+  description: string,
+): { severity: Severity; message: string } | null {
+  if (example) {
+    return { severity: "high", message: `looks like a real secret (${description}) committed in a template file` };
+  }
+  if (tracked) {
+    return { severity: "high", message: `looks like a real secret (${description}) in a file tracked by git` };
+  }
+  return null;
+}
+
+function severityFor(code: FindingCode): Severity {
   switch (code) {
-    case "UNSAFE":
-      return extra === "high-entropy" ? "high" : "high";
+    case "UNSAFE": {
+      // UNSAFE is computed by unsafeLocation(): it needs the file kind and the
+      // git-tracked bit, which this table does not have.
+      return "high";
+    }
     case "DUPLICATE":
       return "medium";
     case "MISSING":
@@ -119,6 +144,9 @@ export function countFindings(findings: Finding[]): CheckCounts {
 export function checkProject(options: CheckOptions): CheckReport {
   const cwd = path.resolve(options.cwd);
   const notes: string[] = [];
+  // Only ask git when we may actually need the answer: one subprocess for the
+  // whole run, and none at all when the user opted out of UNSAFE.
+  const tracked = options.noUnsafe === true ? null : gitTrackedFiles(cwd);
   const envFiles = discoverEnvFiles(cwd, options.extraEnvFiles ?? []);
 
   const parsed: { file: string; base: string; text: string; keys: string[]; example: boolean; duplicates: string[] }[] = [];
@@ -212,6 +240,7 @@ export function checkProject(options: CheckOptions): CheckReport {
       });
     }
     const seenEmpty = new Set<string>();
+    const gitTracked = tracked !== null && tracked.has(p.file);
     for (const entry of file.entries) {
       if (entry.value.trim() === "" && !seenEmpty.has(entry.key)) {
         seenEmpty.add(entry.key);
@@ -224,14 +253,16 @@ export function checkProject(options: CheckOptions): CheckReport {
           line: entry.line,
         });
       }
-      if (options.noUnsafe === true || !p.example) continue;
+      if (options.noUnsafe === true) continue;
       const rule = matchUnsafe(entry.value);
       if (rule === null) continue;
+      const location = unsafeLocation(p.example, gitTracked, rule.description);
+      if (location === null) continue;
       findings.push({
         code: "UNSAFE",
-        severity: severityFor("UNSAFE", rule.id),
+        severity: location.severity,
         key: entry.key,
-        message: `looks like a real secret (${rule.description}) committed in a template file`,
+        message: location.message,
         file: p.file,
         line: entry.line,
         rule: rule.id,

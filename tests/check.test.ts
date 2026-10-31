@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -16,6 +17,36 @@ function makeRepo(files: Record<string, string>): string {
     mkdirSync(path.dirname(abs), { recursive: true });
     writeFileSync(abs, content, "utf8");
   }
+  return dir;
+}
+
+const gitAvailable = (() => {
+  try {
+    return spawnSync("git", ["--version"], { stdio: "ignore" }).status === 0;
+  } catch {
+    return false;
+  }
+})();
+
+/** A throwaway git repo whose committed files are exactly `commit`. */
+function gitRepo(files: Record<string, string>, commit: string[]): string {
+  const dir = makeRepo(files);
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: path.join(dir, "absent-gitconfig"),
+    GIT_AUTHOR_NAME: "envpulse",
+    GIT_AUTHOR_EMAIL: "envpulse@example.test",
+    GIT_COMMITTER_NAME: "envpulse",
+    GIT_COMMITTER_EMAIL: "envpulse@example.test",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+  const run = (args: string[]): void => {
+    spawnSync("git", args, { cwd: dir, env, stdio: "ignore" });
+  };
+  run(["init", "--quiet"]);
+  run(["-c", "core.autocrlf=false", "add", "--", ...commit]);
+  run(["-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "fixture"]);
   return dir;
 }
 
@@ -92,25 +123,83 @@ describe("checkProject", () => {
     expect(dup?.severity).toBe("medium");
   });
 
-  it("reports UNSAFE only for example files and can be disabled", () => {
+  it("reports UNSAFE for a real secret in an example file and can be disabled", () => {
     const files = {
       ".env.example": "API_KEY=" + stripeLive + "\n",
       "src/app.ts": "process.env.API_KEY;\n",
     };
     const dir = makeRepo(files);
     const report = checkProject({ cwd: dir });
-    expect(report.findings.filter((f) => f.code === "UNSAFE").map((f) => f.rule)).toEqual(["stripe-live"]);
+    const unsafe = report.findings.filter((f) => f.code === "UNSAFE");
+    expect(unsafe.map((f) => f.rule)).toEqual(["stripe-live"]);
+    expect(unsafe[0]?.severity).toBe("high");
+    expect(unsafe[0]?.message).toContain("committed in a template file");
     expect(report.exitCode).toBe(1);
     const quiet = checkProject({ cwd: dir, noUnsafe: true });
     expect(quiet.findings.filter((f) => f.code === "UNSAFE")).toHaveLength(0);
   });
 
-  it("does not report UNSAFE for a real .env file", () => {
+  it("still finds a real secret in an example file when git is unavailable", () => {
+    // A plain directory is not a git repository: gitTrackedFiles() returns null
+    // and case 1 must keep working instead of degrading to a silent no-op.
+    const dir = makeRepo({
+      ".env.example": "API_KEY=" + stripeLive + "\n",
+      "src/app.ts": "process.env.API_KEY;\n",
+    });
+    const report = checkProject({ cwd: dir });
+    expect(report.findings.filter((f) => f.code === "UNSAFE")).toHaveLength(1);
+  });
+
+  it("ignores a real secret in a .env that is not tracked by git", () => {
     const dir = makeRepo({
       ".env.example": "API_KEY=sk_test_placeholder_value\n",
       ".env": "API_KEY=" + stripeLive + "\n",
       "src/app.ts": "process.env.API_KEY;\n",
     });
+    const report = checkProject({ cwd: dir });
+    expect(report.findings.filter((f) => f.code === "UNSAFE")).toHaveLength(0);
+  });
+
+  // Regression: UNSAFE used to be enabled only for *.example files, so a real
+  // .env full of live keys was reported as clean even after it was committed.
+  it.skipIf(!gitAvailable)("reports a real secret in a plain .env that git tracks", () => {
+    const dir = gitRepo(
+      {
+        ".env.example": "API_KEY=sk_test_placeholder_value\n",
+        ".env": "API_KEY=" + stripeLive + "\n",
+        "src/app.ts": "process.env.API_KEY;\n",
+      },
+      [".env"],
+    );
+    const report = checkProject({ cwd: dir });
+    const unsafe = report.findings.filter((f) => f.code === "UNSAFE");
+    expect(unsafe.map((f) => f.rule)).toEqual(["stripe-live"]);
+    expect(unsafe[0]?.severity).toBe("high");
+    expect(unsafe[0]?.message).toContain("tracked by git");
+    expect(report.exitCode).toBe(1);
+  });
+
+  it.skipIf(!gitAvailable)("still reports a real secret in a tracked example file", () => {
+    const dir = gitRepo({ ".env.example": "API_KEY=" + stripeLive + "\n", "src/app.ts": "process.env.API_KEY;\n" }, [
+      ".env.example",
+    ]);
+    const report = checkProject({ cwd: dir });
+    const unsafe = report.findings.filter((f) => f.code === "UNSAFE");
+    expect(unsafe.map((f) => f.rule)).toEqual(["stripe-live"]);
+    expect(unsafe[0]?.message).toContain("template file");
+  });
+
+  // Regression: a tracked plain .env whose secret-looking value is only a
+  // placeholder must stay quiet, or every real-world repo turns red.
+  it.skipIf(!gitAvailable)("does not flag placeholder values in a tracked .env", () => {
+    const dir = gitRepo(
+      {
+        ".env.example": "API_KEY=sk_test_placeholder_value\n",
+        ".env": "API_KEY=changeme\n",
+        "src/app.ts": "process.env.API_KEY;\n",
+      },
+      [".env"],
+    );
     const report = checkProject({ cwd: dir });
     expect(report.findings.filter((f) => f.code === "UNSAFE")).toHaveLength(0);
   });

@@ -107,6 +107,16 @@ export interface CheckReport {
 export interface DiffEntry {
   key: string;
   value: string;
+  /** Set when the value is only the header of a multi-line PEM block. */
+  pemLines?: number;
+}
+
+export interface DiffChangedEntry {
+  key: string;
+  a: string;
+  b: string;
+  /** Set when a value is only the header of a multi-line PEM block. */
+  pemLines?: number;
 }
 
 export interface DiffReport {
@@ -117,7 +127,7 @@ export interface DiffReport {
   b: { path: string; keys: number };
   onlyA: DiffEntry[];
   onlyB: DiffEntry[];
-  changed: { key: string; a: string; b: string }[];
+  changed: DiffChangedEntry[];
   same: number;
   identical: boolean;
 }

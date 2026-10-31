@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.11-informational.svg)](package.json)
 
-**Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The whole installed package is ~40 KB of compiled TypeScript.
+**Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The published package is 48 KB packed / 180 KB unpacked, 36 files.
 
 ---
 
@@ -22,7 +22,7 @@ Every team has a `.env.example` that drifted from `.env`, and a `.env` that drif
 - Someone pastes a **real** `sk_live_...` key into `.env.example` "just to show the format" and commits it.
 - `PORT=` is defined twice in `.env`; the last line silently wins, and the first line is a lie.
 
-Linters don't check this. `dotenv` doesn't check this. Reviewers miss it in a 400-line diff. `envpulse` checks it in 200 ms.
+Linters don't check this. `dotenv` doesn't check this. Reviewers miss it in a 400-line diff. `envpulse` checks it in well under a second: five consecutive runs of the fixture below measured 264–351 ms wall clock, Node startup included.
 
 ## Install
 
@@ -99,8 +99,16 @@ Cross-checks every `.env*` file in the project against the variables that the so
 | `UNUSED` | low | The template declares it, but nothing in the scanned source reads it. |
 | `DRIFT` | medium | Two env files disagree about which keys exist. |
 | `DUPLICATE` | medium | The same key is assigned twice in one file — the last one silently wins. |
-| `UNSAFE` | **high** | A value in a **committed** env file looks like a live secret. |
+| `UNSAFE` | **high** | A value that will reach other people looks like a live secret (see the three cases below). |
 | `EMPTY` | low | Declared with no value, so it will be `undefined` at runtime. |
+
+`UNSAFE` has exactly three cases, because "a secret leaked" always means "it can reach someone else":
+
+1. **A real secret in a template file** (`.env.example`, `.env.sample`, `.env.template`) — templates are meant to be committed, so the value is public. Always **high**.
+2. **A real secret in a plain `.env` that git tracks** — someone committed it. Always **high**, and the message says so.
+3. **A real secret in a plain `.env` that git does not track** — that is what `.env` is *for*. No finding, no noise.
+
+Case 2 is decided by one `git ls-files` call for the whole run. If git is missing or the directory is not a repository, envpulse silently falls back to case 1 only — it never fails because of git.
 
 Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage. Drop it straight into CI:
 
@@ -189,7 +197,7 @@ real credentials: GitHub push protection rejects such a push outright, and a too
 whose test suite contains plausible-looking keys is making the exact mistake it
 exists to catch.
 
-`UNSAFE` only fires for files that are meant to be committed (`.env.example`, `.env.sample`, `.env.template`). Your real `.env` is allowed to hold real secrets — it just must not be committed.
+The fixture above is not a git repository, so `.env.example` is judged by case 1. Copy a real secret into a `.env` that `git ls-files` reports, and the same run turns it into `looks like a real secret (...) in a file tracked by git` — that is the leak worth blocking. An ignored local `.env` stays silent.
 
 ### `envpulse diff <a> <b>` — compare without leaking
 
@@ -232,6 +240,7 @@ Add `--reveal` when you really need the plaintext — it is never the default.
 Adds every template key that is missing from the target, **in template order**, anchored to the next template key that already exists. Existing values, comments, ordering and line endings are preserved byte for byte. Nothing is ever deleted.
 
 ```text
+$ cp .env .env.sync-demo
 $ envpulse sync --from .env.example --to .env.sync-demo --dry-run
 would add 2 key(s) to .env.sync-demo
   + FEATURE_BETA
@@ -248,14 +257,27 @@ Keys present in the target but absent from the template are reported as stale an
 $ envpulse mask < .env
 # Local developer overrides
 PORT=8080
-DATABASE_URL=po****ev
+DATABASE_URL=postgres://localhost:5432/demo_dev
 STRIPE_SECRET_KEY=sk****C9
 LOG_LEVEL=debug
 DEBUG_VERBOSE=true
 PORT=9090
 ```
 
-Only keys that look sensitive (by name or by value pattern) are masked; harmless values like `LOG_LEVEL=debug` stay readable. Pass `--all` to mask everything.
+Masking is driven by the **value** first and the **key name** second, so `LOG_LEVEL=debug` and a credential-free `DATABASE_URL` stay readable while `STRIPE_SECRET_KEY` is masked. A key called `DB` whose value actually contains a password is masked too — the value decides, not the name. Pass `--all` to mask everything.
+
+A PEM block cannot live in a single env value, which is exactly how it leaks: the assignment line gets masked and the key material on the following lines used to be printed in full. `mask` now swallows the whole block through its `-----END ...-----` line:
+
+```text
+$ printf 'PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAsecretbody\n-----END RSA PRIVATE KEY-----\nDEBUG=true\n' > /tmp/pem.env
+$ envpulse mask < /tmp/pem.env
+PRIVATE_KEY=--****--
+MI****dy
+--****--
+DEBUG=true
+```
+
+`diff` shares the same predicate: a PEM header is masked even with `--reveal`, because the header is the block opener, not a value you can retype.
 
 ### `envpulse init --from-code` — bootstrap a template
 
@@ -285,7 +307,7 @@ The real command refuses to overwrite an existing file unless you pass `--force`
 
 ### JSON output
 
-Every command accepts `--json` for CI and dashboards:
+Every command accepts `--json` for CI and dashboards. This is a real run (140 lines) with the middle of `findings` collapsed to `...` for readability — every field shown is exactly as printed:
 
 ```text
 $ envpulse check --cwd examples/demo-app --json
@@ -299,35 +321,64 @@ $ envpulse check --cwd examples/demo-app --json
       "path": ".env",
       "kind": "env",
       "keys": 5,
-      "duplicates": ["PORT"]
+      "duplicates": [
+        "PORT"
+      ]
+    },
+    {
+      "path": ".env.example",
+      "kind": "example",
+      "keys": 6,
+      "duplicates": []
     }
   ],
   "sourceFiles": 3,
-  "variablesRead": ["DATABASE_URL", "DEBUG_VERBOSE", ...],
+  "variablesRead": [
+    "DATABASE_URL",
+    "DEBUG_VERBOSE",
+    "DEPLOY_TARGET",
+    "HEALTHCHECK_TIMEOUT",
+    "LOG_LEVEL",
+    "PORT",
+    "STRIPE_SECRET_KEY"
+  ],
   "findings": [
     {
       "code": "MISSING",
       "severity": "high",
       "key": "DEBUG_VERBOSE",
+      "message": "read by code but missing from .env.example",
       "file": ".env.example",
-      "hits": [{ "file": "src/server.ts", "line": 6 }]
+      "hits": [
+        {
+          "key": "DEBUG_VERBOSE",
+          "file": "src/server.ts",
+          "line": 6
+        }
+      ]
     }
   ],
-  "counts": { "high": 3, "medium": 4, "low": 2 },
+  "counts": {
+    "high": 3,
+    "medium": 4,
+    "low": 2
+  },
+  "notes": [],
   "exitCode": 1
 }
 ```
 
-**What happens when there is no `.env` at all** — the honest answer, run in the workspace repository this tool was built in (`<workspace>` below is that checkout):
+**What happens when there is no `.env` at all** — the honest answer. In a scratch directory that contains one source file and no env file:
 
 ```text
-$ envpulse check
+$ mkdir -p /tmp/nodotenv/src && echo 'const api = process.env.API_URL;' > /tmp/nodotenv/src/index.js
+$ cd /tmp/nodotenv && envpulse check
 envpulse check  (v0.1.6)
-cwd: <workspace>
+cwd: <scratch>/nodotenv
 
 no .env files found - nothing to cross-check.
 
-scanned 88 source file(s), 28 variable(s) read by code
+scanned 1 source file(s), 1 variable(s) read by code
 
 no problems found
 note: no template env file found, so MISSING cannot be reported. Create .env.example (try `envpulse init --from-code`).
@@ -335,10 +386,13 @@ note: no template env file found, so MISSING cannot be reported. Create .env.exa
 0 problems
 ```
 
-envpulse does not invent problems to look busy. With no template there is nothing to compare against, so it says so and exits `0`. In a directory with no source code either:
+envpulse does not invent problems to look busy. With no template there is nothing to compare against, so it says so and exits `0`. In a completely empty directory:
 
 ```text
 $ envpulse check
+envpulse check  (v0.1.6)
+cwd: <scratch>/empty
+
 no .env files found - nothing to cross-check.
 
 scanned 0 source file(s), 0 variable(s) read by code
@@ -346,6 +400,27 @@ scanned 0 source file(s), 0 variable(s) read by code
 no problems found
 
 0 problems
+```
+
+And when there is a `.env` but no template, it uses the `.env` itself as the reference and says so — note the **low**-severity `UNUSED` (it never fails a build) and the trailing `exit 0`:
+
+```text
+$ cd /tmp/dotenv-only && envpulse check
+envpulse check  (v0.1.6)
+cwd: <scratch>/dotenv-only
+
+env files
+      env  .env  2 keys
+
+scanned 1 source file(s), 1 variable(s) read by code
+
+UNUSED (1)
+  [LOW] DEBUG  .env
+         declared in .env but never read by scanned source
+
+note: template .env is not an example file - it may contain real values.
+
+0 high, 0 medium, 1 low  -> exit 0
 ```
 
 ## How it works
@@ -382,9 +457,11 @@ Types shipped in `dist/index.d.ts`: `EnvFile`, `EnvEntry`, `Finding`, `CheckRepo
 
 ## FAQ
 
-**Does it upload my secrets anywhere?**  No. It never opens a socket. There is no telemetry, no registry call, no update check. Read `src/` — it is ~1,900 lines and imports only `node:fs`, `node:path`, `node:os` and `node:process`.
+**Does it upload my secrets anywhere?**  No. It never opens a socket. There is no telemetry, no registry call, no update check. Read `src/` — it is ~2,100 lines and imports only `node:fs`, `node:path`, `node:process`, `node:url` and `node:child_process` (the last one solely to run `git ls-files`, which reads your local index and touches no network).
 
 **Will it flag a fake key in my test suite?**  Usually not: placeholders (`changeme`, `xxxx`, `your-key-here`, `sk_test_...`, `AKIAIOSFODNN7EXAMPLE`) are explicitly ignored. If a fixture still trips it, `--no-unsafe` disables the rule.
+
+**My local `.env` really does hold live keys. Will that fail my build?**  No — only if git tracks it. An ignored `.env` produces no `UNSAFE` finding at all (case 3). The moment `git ls-files` reports it, the same value becomes `high`, because now it is in your history and on the remote.
 
 **Why not just use `dotenv-linter`?**  `dotenv-linter` checks style inside one file. envpulse checks the *relationship* between your env files and your source code — which is where real outages come from.
 
@@ -421,7 +498,7 @@ MIT © 2026 kesheC. See [LICENSE](LICENSE).
 - 有人为了「演示格式」，把真实的 `sk_live_...` 密钥贴进 `.env.example` 并提交了。
 - `.env` 里 `PORT=` 定义了两次，最后一行静默生效，第一行是假的。
 
-ESLint 不管这些，`dotenv` 不管这些，人工 review 在 400 行 diff 里也看不出来。envpulse 200 毫秒给你答案。
+ESLint 不管这些，`dotenv` 不管这些，人工 review 在 400 行 diff 里也看不出来。envpulse 连 Node 启动在内跑完一次不到半秒（本机实测 5 次：264–351 毫秒）。
 
 ### 安装
 
@@ -488,8 +565,10 @@ envpulse mask < .env                    # 贴到工单里也不会泄露
 
 ### 几个关键设计
 
-- **零依赖**是刻意的：安全工具自己成为供应链风险就很荒谬。整包 ~40 KB。
-- **只在「本该提交的」文件上查密钥**（`.env.example` / `.env.sample` / `.env.template`）。真实 `.env` 里放真密钥不是问题，提交上去才是。
+- **零依赖**是刻意的：安全工具自己成为供应链风险就很荒谬。整包 `npm pack` 出来 48 KB、解包 180 KB、36 个文件。
+- **`UNSAFE` 只有三种情况**：① 真密钥在模板文件（`.env.example` / `.env.sample` / `.env.template`）里 —— 模板本来就是给人提交的，一定是 high；② 真密钥在**被 git 跟踪**的普通 `.env` 里 —— 有人把它提交了，同样 high，报错信息会写明 `in a file tracked by git`；③ 真密钥在**没被 git 跟踪**的 `.env` 里 —— 那正是 `.env` 的用途，不报、不吵。跟踪状态整轮只跑一次 `git ls-files`；机器上没有 git、或者当前目录不是仓库时，静默退化为只查模板，绝不因为 git 而崩掉。
+- **打码看值，其次看名字**：`mask` 先判断值本身像不像密钥（带密码的连接串、PEM 私钥、高熵串……），再看键名里有没有 `SECRET` / `TOKEN` / `PASSWORD`。所以 `LOG_LEVEL=debug` 和无密码的 `DATABASE_URL` 保持可读，而键名叫 `DB`、值里带密码的照样打码。
+- **PEM 整块打码**：私钥塞不进一行 env 值 —— 赋值行被打了码、后面的密钥正文却原样输出，这正是最常见的泄漏方式。`mask` 会一路吞到 `-----END ...-----` 那一行；`diff` 共用同一套判断，即使加 `--reveal` 也不显示 PEM 头。
 - **`sync` 只插入、不重写**：直接对原始文本做行拼接，所以注释、引号风格、CRLF 换行全部原样保留。
 - **占位符不算泄漏**：`changeme`、`xxxx`、`your-key-here`、`sk_test_...`、`AKIAIOSFODNN7EXAMPLE` 都会被放过。
 - **不臆造问题**：仓库里没有 `.env` 模板时，它明确告诉你「无从比对」并退出 `0`，而不是假装发现了问题。

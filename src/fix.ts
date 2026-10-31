@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { formatValue, parseEnvFile, parseEnvText, renderAssignment, toRecord } from "./parser.js";
-import { isSensitiveValue } from "./rules.js";
+import { closesPemBlock, isPemBodyLine, isSensitiveValue, opensPemBlock } from "./rules.js";
 import { scanSource } from "./scan.js";
 import type { EnvEntry } from "./types.js";
 import { maskValue, toPosix } from "./util.js";
@@ -184,9 +184,30 @@ export function maskText(text: string, options: MaskOptions = {}): string {
     if (eq === -1) continue;
     const prefix = original.slice(0, eq + 1);
     lines[index] = prefix + (entry.quote === "none" ? masked : formatValue(masked, entry.quote));
+    // The value alone decides this: a PEM body is a secret no matter what the
+    // key is called, so --all and byKeyName must not change the outcome.
+    if (opensPemBlock(entry.value)) maskPemBody(lines, index + 1);
   }
   const joined = lines.join(newline);
   return file.hasBom ? "\uFEFF" + joined : joined;
+}
+
+/**
+ * Mask the raw lines of a PEM block that a single `.env` assignment cannot hold.
+ *
+ * Everything from `start` up to and including the `-----END ...-----` line is
+ * replaced wholesale: the base64 body carries as much secret as the header, and
+ * leaving either readable defeats the point of masking.
+ */
+function maskPemBody(lines: string[], start: number): void {
+  for (let index = start; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line === undefined) return;
+    if (!isPemBodyLine(line)) return;
+    const closes = closesPemBlock(line);
+    lines[index] = maskValue(line.trim());
+    if (closes) return;
+  }
 }
 
 export interface InitOptions {
