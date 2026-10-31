@@ -35,6 +35,18 @@ npm install -g https://github.com/kesheC/envpulse/releases/latest/download/envpu
 envpulse --version
 ```
 
+Every release publishes the same tarball under a stable name (`envpulse.tgz`) alongside an
+`envpulse.tgz.sha256` checksum. To verify the download before running it:
+
+```bash
+curl -sLO https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
+curl -sLO https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz.sha256
+sha256sum -c envpulse.tgz.sha256          # envpulse.tgz: OK
+npm install -g ./envpulse.tgz
+```
+
+On macOS use `shasum -a 256 -c envpulse.tgz.sha256` — there is no `sha256sum` by default.
+
 ```bash
 # or as a project dev dependency
 npm install -D https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
@@ -419,6 +431,18 @@ ESLint 不管这些，`dotenv` 不管这些，人工 review 在 400 行 diff 里
 npm install -g https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
 envpulse --version
 ```
+
+每个 release 都用固定名字（`envpulse.tgz`）发布同一个 tarball，并附一份
+`envpulse.tgz.sha256` 校验和。运行之前先验一下：
+
+```bash
+curl -sLO https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
+curl -sLO https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz.sha256
+sha256sum -c envpulse.tgz.sha256          # envpulse.tgz: OK
+npm install -g ./envpulse.tgz
+```
+
+macOS 上没有 `sha256sum`，用 `shasum -a 256 -c envpulse.tgz.sha256`。
 
 ```bash
 # 或者装成项目的 devDependency
