@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-11-01
+
 ### Fixed
 
 - **Running `envpulse` with no arguments now exits 2, not 0.** The help text
@@ -20,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flag had never been passed. `--json=true` and `--json=false` were treated
   the same way. Options that genuinely take a value still accept either
   spelling, so `--cwd=.` and `--cwd .` remain the same.
+
+### Quality
+
+- 152 tests across 10 spec files, 2,464 lines of TypeScript.
+- CI matrix: Ubuntu and Windows, Node 20 and 22.
+- Zero runtime dependencies.
 
 ## [0.1.9] - 2026-11-01
 
@@ -230,7 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: Ubuntu and Windows, Node 20 and 22.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.10...HEAD
+[0.1.10]: https://github.com/kesheC/envpulse/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/kesheC/envpulse/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/kesheC/envpulse/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/kesheC/envpulse/compare/v0.1.6...v0.1.7
