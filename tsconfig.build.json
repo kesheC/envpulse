@@ -2,7 +2,12 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // The package ships dist/ only (see "files" in package.json), so a map
+    // whose "sources" point at src/ links to something the reader can never
+    // open. Editors still get maps from tsconfig.json.
+    "sourceMap": false,
+    "declarationMap": false
   },
   "include": [
     "src"

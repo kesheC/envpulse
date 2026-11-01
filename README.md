@@ -48,6 +48,12 @@ npm install -g ./envpulse.tgz
 
 On macOS use `shasum -a 256 -c envpulse.tgz.sha256` — there is no `sha256sum` by default.
 
+The tarball ships `dist/`, `README.md` and `LICENSE`, and nothing else: no `src/`,
+no tests, and no `.js.map` files. A sourcemap in a package that publishes no
+sources only points at something the reader can never open, so the published build
+turns them off — `tsconfig.build.json` keeps that honest and `tests/package.test.ts`
+asserts it.
+
 ```bash
 # or as a project dev dependency
 npm install -D https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
@@ -664,6 +670,10 @@ npm install -g ./envpulse.tgz
 ```
 
 macOS 上没有 `sha256sum`，用 `shasum -a 256 -c envpulse.tgz.sha256`。
+
+tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有测试、也没有 `.js.map`。
+不发源码的包里带 sourcemap 只是指向一个读者永远打不开的文件，所以发布构建关掉了它，
+由 `tsconfig.build.json` 守着，并有 `tests/package.test.ts` 断言。
 
 ```bash
 # 或者装成项目的 devDependency
