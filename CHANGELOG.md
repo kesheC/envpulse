@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`--version` is a top-level request, not a per-command flag.** `envpulse
+  check --version` printed the version and exited 0 without checking anything,
+  and `envpulse mask --version` looked like a masked run. Every command now
+  refuses it: ``envpulse: --version is not supported by `check`; it applies to
+  "envpulse --version" on its own``. `--help` is unchanged.
+
 ## [0.1.10] - 2026-11-01
 
 ### Fixed

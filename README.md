@@ -177,7 +177,7 @@ INVALID (1)
 > tool that catches secrets in tracked `.env` files has no business shipping one,
 > even a harmless one.
 
-Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage -- and running `envpulse` with no arguments at all is bad usage too, not a pass. A switch that is handed a value (`--json=1`) is bad usage as well: `--json` is either on or absent, and accepting the word would leave the flag set to something no reader recognises. Options that do take a value accept either spelling, so `--cwd=.` is `--cwd .`. Drop it straight into CI:
+Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage -- and running `envpulse` with no arguments at all is bad usage too, not a pass. `--version` is answered at the top level only: `envpulse check --version` is a usage error naming where the answer lives, because a version banner is not a check. A switch that is handed a value (`--json=1`) is bad usage as well: `--json` is either on or absent, and accepting the word would leave the flag set to something no reader recognises. Options that do take a value accept either spelling, so `--cwd=.` is `--cwd .`. Drop it straight into CI:
 
 ```yaml
 - run: envpulse check
@@ -612,7 +612,11 @@ never prints a value, so there is nothing for `--reveal` to do, and a flag that
 does nothing looks exactly like a flag that worked. Each command declares the
 options it reads; anything else is a usage error that names the commands that do
 read it: `envpulse: `check` does not read --reveal; it applies to diff, mask`.
-`--help` and `--version` work everywhere.
+`--help` works everywhere. `--version` is answered at the top level: a command
+that runs something refuses it (``envpulse: --version is not supported by
+`check`; it applies to "envpulse --version" on its own``), because a version
+banner is not a check.
+
 **Why not just use `dotenv-linter`?**  `dotenv-linter` checks style inside one file. envpulse checks the *relationship* between your env files and your source code — which is where real outages come from.
 
 **It flagged a key my framework reads implicitly (Next.js, Vite, `NODE_ENV`).**  Declaring it in the template is the honest fix, since the framework does read it. `UNUSED` is low severity and never fails the build, so a false positive costs you nothing but a line of noise.
@@ -697,7 +701,7 @@ tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有�
 
 全局选项：`-h, --help`、`-v, --version`、`--json`（check / diff / sync / init）、`--reveal`（diff / mask）、`--no-color`；环境变量 `NO_COLOR` 一样能关掉 ANSI 颜色。
 
-退出码：`0` 没有高危问题；`1` 至少一个高危问题（`diff` 发现差异也算）；`2` 用法错误或输入读不了。给开关传值也算用法错误（`--json=1`）：`--json` 只有「有」和「没有」两种状态，接受一个词只会让它变成一个没人认识的字符串。取值的选项两种写法都收，`--cwd=.` 与 `--cwd .` 等价。
+退出码：`0` 没有高危问题；`1` 至少一个高危问题（`diff` 发现差异也算）；`2` 用法错误或输入读不了。`--version` 只在顶层回答：`envpulse check --version` 是用法错误，并告诉你版本号该去哪里问 —— 版本横幅不是一次检查。给开关传值也算用法错误（`--json=1`）：`--json` 只有「有」和「没有」两种状态，接受一个词只会让它变成一个没人认识的字符串。取值的选项两种写法都收，`--cwd=.` 与 `--cwd .` 等价。
 
 几条值得单独说的设计（英文那节里散在 `check` 的说明和 FAQ 中）：
 
@@ -736,7 +740,8 @@ CLI 只是薄壳，核心能力都通过 `dist/index.js` 导出，无 `process.e
 
 **我本机 `.env` 里就是真密钥，会把构建搞红吗？** 不会 —— 只有 git 跟踪它时才会。被忽略的 `.env` 完全不产生 `UNSAFE`；一旦 `git ls-files` 报了它，同一个值立刻变 `high`，因为这时它已经进了你的历史和远端。
 
-**我给 `check` 传了 `--reveal`，退出码 2，这是 bug 吗？** 不是 —— `check` 从不打印任何值，`--reveal` 无事可做，而一个什么都不做的开关看起来和「生效了」一模一样。每个命令都声明自己真正读取的选项，其余一律是用法错误，并点名哪些命令会读它：`envpulse: `check` does not read --reveal; it applies to diff, mask`。`--help` 和 `--version` 在所有命令上都可用。
+**我给 `check` 传了 `--reveal`，退出码 2，这是 bug 吗？** 不是 —— `check` 从不打印任何值，`--reveal` 无事可做，而一个什么都不做的开关看起来和「生效了」一模一样。每个命令都声明自己真正读取的选项，其余一律是用法错误，并点名哪些命令会读它：`envpulse: `check` does not read --reveal; it applies to diff, mask`。`--help` 在所有命令上都可用；`--version` 只在顶层，`envpulse check --version` 会明确拒绝并告诉你 `envpulse --version`。
+
 **为什么不直接用 `dotenv-linter`？** `dotenv-linter` 检查单个文件的风格；envpulse 检查的是你的 env 文件和源码之间的**关系** —— 真实故障正是从那来的。
 
 **它给我框架隐式读取的变量（Next.js、Vite、`NODE_ENV`）报了 UNUSED。** 写进模板才是诚实的做法，因为框架确实会读它。`UNUSED` 是 low 级、从不把构建搞红，误报的代价只是一行噪音。

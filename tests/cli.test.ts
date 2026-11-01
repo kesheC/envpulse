@@ -220,10 +220,26 @@ describe("cli", () => {
     expect(result.code).toBe(0);
   });
 
-  it("does not report --help or --version as unread", () => {
+  it("refuses --version on every command that runs something", () => {
+    for (const command of ["check", "diff", "sync", "mask", "init"]) {
+      const result = run([command, "--version"]);
+      expect(result.code).toBe(2);
+      expect(result.out).toBe("");
+      expect(result.err).toContain(`--version is not supported by \`${command}\``);
+    }
+  });
+
+  it("does not report --help as unread, and answers --version at the top level", () => {
     const result = run(["check", "--help"]);
     expect(result.code).toBe(0);
     expect(result.out).toContain("envpulse check");
-    expect(run(["mask", "--version", "x"]).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+    // `envpulse mask --version` used to print the version and exit 0, so a run
+    // that masked nothing looked like a masked run. --version is a question
+    // about the tool; the answer belongs at the top level.
+    const version = run(["mask", "--version", "x"]);
+    expect(version.code).toBe(2);
+    expect(version.out).toBe("");
+    expect(version.err).toContain("--version is not supported by");
+    expect(run(["--version"]).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });

@@ -24,7 +24,7 @@ Run \`envpulse <command> --help\` for command specific options.
 
 Global options (every command):
   -h, --help       Show help
-  -v, --version    Show version
+  -v, --version    Show version (top level only)
 
 Options accepted by some commands:
       --json       Machine readable JSON output (check, diff, sync, init)
@@ -365,9 +365,19 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     throw error;
   }
 
-  if (flag(args.flags, "version") || args.command === "version") {
+  // --version is a request about the tool, not about the run: `envpulse check
+  // --version` printed the version and exited 0 without checking anything, and
+  // `envpulse mask --version` looked like a masked run. --help is different --
+  // every command has one, and it does what it says.
+  if (args.command === "version" || (args.command === "" && flag(args.flags, "version"))) {
     process.stdout.write(VERSION + "\n");
     return 0;
+  }
+  if (flag(args.flags, "version") && Object.hasOwn(COMMAND_FLAGS, args.command)) {
+    process.stderr.write(
+      `envpulse: --version is not supported by \`${args.command}\`; it applies to "envpulse --version" on its own\n`,
+    );
+    return 2;
   }
   if (args.command === "") {
     // Running the binary with no arguments asked for nothing, so it exits like
