@@ -366,8 +366,13 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     return 0;
   }
   if (args.command === "") {
+    // Running the binary with no arguments asked for nothing, so it exits like
+    // every other usage error in this set. --help prints the same text and
+    // exits 0: the reader asked for it. (The old branch returned 0 for both,
+    // and its `positionals.length > 0` arm was unreachable -- the parser only
+    // starts collecting positionals after the command has been set.)
     process.stdout.write(HELP);
-    return args.positionals.length > 0 ? 2 : 0;
+    return flag(args.flags, "help") ? 0 : 2;
   }
   if (args.command === "help" || flag(args.flags, "help")) {
     const page = COMMAND_HELP[args.command];

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Running `envpulse` with no arguments now exits 2, not 0.** The help text
+  is the same; the exit code is not. Every other tool in this set treats a call
+  that asked for nothing as a usage error, and a script that ran
+  `envpulse && deploy` was told the check had passed. `--help` still exits 0,
+  because the reader asked for the text.
+
 ## [0.1.9] - 2026-11-01
 
 ### Added

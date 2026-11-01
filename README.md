@@ -177,7 +177,7 @@ INVALID (1)
 > tool that catches secrets in tracked `.env` files has no business shipping one,
 > even a harmless one.
 
-Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage. Drop it straight into CI:
+Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage -- and running `envpulse` with no arguments at all is bad usage too, not a pass. Drop it straight into CI:
 
 ```yaml
 - run: envpulse check
@@ -619,7 +619,7 @@ read it: `envpulse: `check` does not read --reveal; it applies to diff, mask`.
 
 **My build passes but a variable is `undefined` in production. Can envpulse catch that?**  Only if the file says so. A line like `DATABASE_URL postgres://...` (missing `=`) parses as nothing, so the key never exists — run the same command and you get an `INVALID` finding on that exact line, plus whatever falls out of it. Set `--json` and grep for the code.
 
-**What if I typo `--cwd`?**  It exits `2` with `--cwd ... does not exist` on stderr. A wrong path must never look like a clean bill of health.
+**What if I typo `--cwd`?**  It exits `2` with `--cwd ... does not exist` on stderr. A wrong path must never look like a clean bill of health. The same goes for running `envpulse` with no arguments: it prints the help text and exits `2`, because a call that asked for nothing must not look like a check that passed.
 
 **Does `sync` delete keys?**  Never. Stale keys are reported and kept. `sync` only inserts lines.
 

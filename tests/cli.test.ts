@@ -56,6 +56,14 @@ describe("cli", () => {
     expect(result.out).toContain("sync");
   });
 
+  // Regression: a bare invocation asked for nothing, yet exited 0 - the same
+  // code as a successful run. The other tools in this set exit 2 on usage.
+  it("exits 2 when asked for nothing at all", () => {
+    const result = run([]);
+    expect(result.code).toBe(2);
+    expect(result.out).toContain("envpulse");
+  });
+
   it("prints the version", () => {
     const result = run(["--version"]);
     expect(result.code).toBe(0);
