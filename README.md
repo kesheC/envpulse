@@ -149,7 +149,7 @@ of `.env`, so the variable silently vanishes:
 
 ```text
 $ envpulse check --cwd /tmp/noequals
-envpulse check  (v0.1.10)
+envpulse check  (v0.1.11)
 cwd: <scratch>/noequals
 
 env files
@@ -189,7 +189,7 @@ here; your own machine prints its real path and nothing else differs:
 
 ```text
 $ envpulse check --cwd examples/demo-app
-envpulse check  (v0.1.10)
+envpulse check  (v0.1.11)
 cwd: <repo>/examples/demo-app
 
 env files
@@ -273,7 +273,7 @@ Values are masked by default. `diff` exits `1` when the files differ (same conve
 
 ```text
 $ envpulse diff .env .env.example
-envpulse diff  (v0.1.10)
+envpulse diff  (v0.1.11)
 A: .env (5 keys)
 B: .env.example (6 keys)
 
@@ -314,7 +314,7 @@ prints a PEM block, and the count below reports key material lines only
 
 ```text
 $ envpulse diff a.env b.env --reveal
-envpulse diff  (v0.1.10)
+envpulse diff  (v0.1.11)
 A: a.env (1 keys)
 B: b.env (1 keys)
 
@@ -332,7 +332,7 @@ not keys, but they are content:
 
 ```text
 $ envpulse diff junk.env junk2.env
-envpulse diff  (v0.1.10)
+envpulse diff  (v0.1.11)
 A: junk.env (2 keys)
 B: junk2.env (2 keys)
 
@@ -457,7 +457,7 @@ Every command accepts `--json` for CI and dashboards. This is a real run (140 li
 $ envpulse check --cwd examples/demo-app --json
 {
   "tool": "envpulse",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "command": "check",
   "cwd": ".../examples/demo-app",
   "envFiles": [
@@ -532,7 +532,7 @@ The sentence a person reads still goes to stderr, so a pipe that parses stdout n
 ```text
 $ mkdir -p /tmp/nodotenv/src && echo 'const api = process.env.API_URL;' > /tmp/nodotenv/src/index.js
 $ cd /tmp/nodotenv && envpulse check
-envpulse check  (v0.1.10)
+envpulse check  (v0.1.11)
 cwd: <scratch>/nodotenv
 
 no .env files found - nothing to cross-check.
@@ -549,7 +549,7 @@ envpulse does not invent problems to look busy. With no template there is nothin
 
 ```text
 $ envpulse check
-envpulse check  (v0.1.10)
+envpulse check  (v0.1.11)
 cwd: <scratch>/empty
 
 no .env files found - nothing to cross-check.
@@ -565,7 +565,7 @@ And when there is a `.env` but no template, it uses the `.env` itself as the ref
 
 ```text
 $ cd /tmp/dotenv-only && envpulse check
-envpulse check  (v0.1.10)
+envpulse check  (v0.1.11)
 cwd: <scratch>/dotenv-only
 
 env files

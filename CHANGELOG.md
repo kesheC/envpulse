@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-11-01
+
 ### Fixed
 
 - **`--version` is a top-level request, not a per-command flag.** `envpulse
@@ -20,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{"error":{"message":...,"exitCode":n}}` on stdout as well, with the
   exit code the run really used; the stderr sentence is unchanged and stdout
   stays empty when `--json` was not asked for.
+
+### Quality
+
+- 156 tests across 10 spec files, 2507 lines of TypeScript.
+- CI matrix: Ubuntu and Windows, Node 20 and 22.
+- Zero runtime dependencies.
 
 ## [0.1.10] - 2026-11-01
 
@@ -252,7 +260,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: Ubuntu and Windows, Node 20 and 22.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.10...HEAD
+[0.1.11]: https://github.com/kesheC/envpulse/compare/v0.1.10...v0.1.11
+[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.11...HEAD
 [0.1.10]: https://github.com/kesheC/envpulse/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/kesheC/envpulse/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/kesheC/envpulse/compare/v0.1.7...v0.1.8
