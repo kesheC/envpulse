@@ -14,3 +14,6 @@ examples/leaky/.env
 
 # scratch target used by the sync demo in the README
 examples/demo-app/.env.sync-demo
+
+# written by the CI package-contents assertion
+pack-meta.json
