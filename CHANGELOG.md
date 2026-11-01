@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`envpulse check --reveal` exited 0 having ignored the flag.** Every command
+  shared one option table, so any option was accepted everywhere and simply
+  went unread -- indistinguishable from a run that found nothing. Each command
+  now declares the options it reads (`COMMAND_FLAGS` in `src/cli.ts`) and
+  anything else is a usage error that names the commands that do read it:
+  ``envpulse: `check` does not read --reveal; it applies to diff, mask``.
+  `--help` and `--version` stay universal.
+
 ## [0.1.8] - 2026-11-01
 
 ### Added

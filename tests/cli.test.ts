@@ -137,8 +137,8 @@ describe("cli", () => {
   it("exits 2 when --cwd does not exist", () => {
     const dir = makeRepo({});
     const missing = path.join(dir, "nope", "not", "here");
-    for (const command of ["check", "init"]) {
-      const result = run([command, "--cwd", missing, "--from-code"]);
+    for (const argv of [["check", "--cwd", missing], ["init", "--cwd", missing, "--from-code"]]) {
+      const result = run(argv);
       expect(result.code).toBe(2);
       expect(result.err).toContain("does not exist");
       expect(result.out).toBe("");
@@ -156,5 +156,49 @@ describe("cli", () => {
     const result = run(["diff", path.join(dir, "a.env"), path.join(dir, "nope.env")]);
     expect(result.code).toBe(2);
     expect(result.err).toContain("nope.env");
+  });
+
+  // Regression: every command shared one option table, so `check --reveal`
+  // exited 0 having ignored the flag - indistinguishable from a clean run.
+  it("rejects an option the command never reads, naming the commands that do", () => {
+    const dir = makeRepo({ ".env.example": "PORT=3000\n", "src/app.ts": "process.env.PORT;\n" });
+    const result = run(["check", "--cwd", dir, "--reveal"]);
+    expect(result.code).toBe(2);
+    expect(result.err).toContain("does not read --reveal");
+    expect(result.err).toContain("diff");
+    expect(result.err).toContain("mask");
+    expect(result.out).toBe("");
+  });
+
+  it("rejects unread options for every command, not just check", () => {
+    const dir = makeRepo({ "a.env": "A=1\n", "b.env": "A=2\n" });
+    const cases: [string[], string][] = [
+      [["mask", "--cwd", "."], "--cwd"],
+      [["sync", "--all"], "--all"],
+      [["init", "--from", "x.env"], "--from"],
+      [["diff", path.join(dir, "a.env"), path.join(dir, "b.env"), "--all"], "--all"],
+      [["mask", "--json"], "--json"],
+    ];
+    for (const [argv, flagName] of cases) {
+      const result = run(argv);
+      expect(result.code, argv.join(" ")).toBe(2);
+      expect(result.err, argv.join(" ")).toContain(`does not read ${flagName}`);
+    }
+  });
+
+  it("still accepts the options a command does read", () => {
+    const dir = makeRepo({ ".env.example": "PORT=3000\n", "src/app.ts": "process.env.PORT;\n", "a.env": "TOKEN=abc\n" });
+    expect(run(["check", "--cwd", dir, "--json"]).code).toBe(0);
+    expect(run(["check", "--cwd", dir, "--no-unsafe", "--no-unused"]).code).toBe(0);
+    const file = path.join(dir, "a.env");
+    expect(run(["mask", "--reveal", file]).code).toBe(0);
+    expect(run(["init", "--from-code", "--cwd", dir, "--dry-run"]).code).toBe(0);
+  });
+
+  it("does not report --help or --version as unread", () => {
+    const result = run(["check", "--help"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("envpulse check");
+    expect(run(["mask", "--version", "x"]).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });

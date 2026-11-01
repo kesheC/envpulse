@@ -22,12 +22,14 @@ Commands:
 
 Run \`envpulse <command> --help\` for command specific options.
 
-Global options:
+Global options (every command):
   -h, --help       Show help
   -v, --version    Show version
+
+Options accepted by some commands:
       --json       Machine readable JSON output (check, diff, sync, init)
       --reveal     Show plaintext secret values (diff, mask)
-      --no-color   Disable ANSI colours
+      --no-color   Disable ANSI colours (check, diff, sync)
 
 Exit codes:
   0  no high severity problems
@@ -149,6 +151,37 @@ function parseArgs(argv: string[]): ParsedArgs {
     else positionals.push(arg);
   }
   return { command, positionals, flags };
+}
+
+/**
+ * Which options each command actually reads. Anything outside its set is a
+ * usage error: `envpulse check --reveal` used to exit 0 having ignored the
+ * flag, which looks exactly like a check that ran and found nothing.
+ * Keep this table in step with cmdCheck/cmdDiff/cmdSync/cmdMask/cmdInit.
+ */
+const COMMAND_FLAGS: Record<string, readonly string[]> = {
+  check: ["cwd", "template", "no-unsafe", "no-unused", "json", "no-color"],
+  diff: ["reveal", "json", "no-color"],
+  sync: ["from", "to", "dry-run", "json", "no-color"],
+  mask: ["all", "no-key-names", "reveal"],
+  init: ["from-code", "cwd", "out", "force", "dry-run", "json"],
+};
+
+/** Flags that mean the same thing everywhere and are validated globally. */
+const UNIVERSAL_FLAGS: readonly string[] = ["help", "version"];
+
+function rejectUnreadFlags(args: ParsedArgs): void {
+  const allowed = COMMAND_FLAGS[args.command];
+  if (allowed === undefined) return;
+  const accepted = new Set<string>([...allowed, ...UNIVERSAL_FLAGS]);
+  for (const name of Object.keys(args.flags)) {
+    if (accepted.has(name)) continue;
+    const used = Object.keys(COMMAND_FLAGS)
+      .filter((command) => (COMMAND_FLAGS[command] ?? []).includes(name))
+      .sort();
+    const applies = used.length === 0 ? "it is not an envpulse option" : `it applies to ${used.join(", ")}`;
+    fail(`\`${args.command}\` does not read --${name}; ${applies}`);
+  }
 }
 
 class UsageError extends Error {
@@ -343,6 +376,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   }
 
   try {
+    rejectUnreadFlags(args);
     switch (args.command) {
       case "check": return cmdCheck(args);
       case "diff": return cmdDiff(args);

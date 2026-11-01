@@ -607,6 +607,12 @@ Types shipped in `dist/index.d.ts`: `EnvFile`, `EnvEntry`, `Finding`, `CheckRepo
 
 **My local `.env` really does hold live keys. Will that fail my build?**  No — only if git tracks it. An ignored `.env` produces no `UNSAFE` finding at all (case 3). The moment `git ls-files` reports it, the same value becomes `high`, because now it is in your history and on the remote.
 
+**I passed `--reveal` to `check` and it exited 2. Is that a bug?**  No — `check`
+never prints a value, so there is nothing for `--reveal` to do, and a flag that
+does nothing looks exactly like a flag that worked. Each command declares the
+options it reads; anything else is a usage error that names the commands that do
+read it: `envpulse: `check` does not read --reveal; it applies to diff, mask`.
+`--help` and `--version` work everywhere.
 **Why not just use `dotenv-linter`?**  `dotenv-linter` checks style inside one file. envpulse checks the *relationship* between your env files and your source code — which is where real outages come from.
 
 **It flagged a key my framework reads implicitly (Next.js, Vite, `NODE_ENV`).**  Declaring it in the template is the honest fix, since the framework does read it. `UNUSED` is low severity and never fails the build, so a false positive costs you nothing but a line of noise.
@@ -730,6 +736,7 @@ CLI 只是薄壳，核心能力都通过 `dist/index.js` 导出，无 `process.e
 
 **我本机 `.env` 里就是真密钥，会把构建搞红吗？** 不会 —— 只有 git 跟踪它时才会。被忽略的 `.env` 完全不产生 `UNSAFE`；一旦 `git ls-files` 报了它，同一个值立刻变 `high`，因为这时它已经进了你的历史和远端。
 
+**我给 `check` 传了 `--reveal`，退出码 2，这是 bug 吗？** 不是 —— `check` 从不打印任何值，`--reveal` 无事可做，而一个什么都不做的开关看起来和「生效了」一模一样。每个命令都声明自己真正读取的选项，其余一律是用法错误，并点名哪些命令会读它：`envpulse: `check` does not read --reveal; it applies to diff, mask`。`--help` 和 `--version` 在所有命令上都可用。
 **为什么不直接用 `dotenv-linter`？** `dotenv-linter` 检查单个文件的风格；envpulse 检查的是你的 env 文件和源码之间的**关系** —— 真实故障正是从那来的。
 
 **它给我框架隐式读取的变量（Next.js、Vite、`NODE_ENV`）报了 UNUSED。** 写进模板才是诚实的做法，因为框架确实会读它。`UNUSED` 是 low 级、从不把构建搞红，误报的代价只是一行噪音。
