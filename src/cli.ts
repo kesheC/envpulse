@@ -8,6 +8,7 @@ import { diffFiles } from "./diff.js";
 import { initFromCode, maskText, syncEnvFiles } from "./fix.js";
 import { VERSION, formatCheckReport, formatDiffReport } from "./report.js";
 import type { CheckReport, DiffReport } from "./types.js";
+import { installPipeGuard } from "./pipe.js";
 
 const HELP = `envpulse ${VERSION} - .env drift & secret leak doctor
 
@@ -463,6 +464,8 @@ const invokedDirectly = (() => {
     return false;
   }
 })();
+
+installPipeGuard();
 
 if (invokedDirectly) {
   process.exitCode = main();
