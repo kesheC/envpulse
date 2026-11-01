@@ -209,9 +209,13 @@ describe("cli", () => {
     for (const argv of [["check", "--json=1"], ["check", "--json=false"], ["check", "--no-color=yes"]]) {
       const result = run(argv);
       expect(result.code, argv.join(" ")).toBe(2);
-      expect(result.out, argv.join(" ")).toBe("");
       expect(result.err, argv.join(" ")).toContain("does not take a value");
     }
+    // `--json=false` is a caller saying no, so stdout stays empty. Any other
+    // value is a typo, but the caller did ask for machine output, and the
+    // document explaining the typo is more useful than silence.
+    expect(run(["check", "--json=false"]).out).toBe("");
+    expect(JSON.parse(run(["check", "--json=1"]).out).error.exitCode).toBe(2);
   });
 
   it("still accepts --flag=value for the options that do take one", () => {
@@ -227,6 +231,43 @@ describe("cli", () => {
       expect(result.out).toBe("");
       expect(result.err).toContain(`--version is not supported by \`${command}\``);
     }
+  });
+
+  it("answers a --json caller with a document even when the run fails", () => {
+    // Every failure used to be a line on stderr written where the failure was
+    // detected. `envpulse check --json --cwd /missing` exited 2 with an empty
+    // stdout, so a wrapper could not tell a failed check from a clean one.
+    const cases: [string[], string][] = [
+      [["check", "--json", "--cwd", "/definitely-not-here"], "does not exist"],
+      [["check", "--json", "--bogus"], "unknown option --bogus"],
+      [["--json", "--bogus"], "unknown option --bogus"],
+      [["check", "--json", "--version"], "--version is not supported"],
+      [["mask", "--json", "a.env", "--reveal"], "does not read --json"],
+    ];
+    for (const [argv, expected] of cases) {
+      const result = run(argv);
+      expect(result.code, argv.join(" ")).toBe(2);
+      const parsed = JSON.parse(result.out) as { error: { message: string; exitCode: number } };
+      expect(parsed.error.message, argv.join(" ")).toContain(expected);
+      expect(parsed.error.exitCode, argv.join(" ")).toBe(2);
+      expect(result.err, argv.join(" ")).toContain("envpulse: ");
+    }
+  });
+
+  it("keeps stdout empty on failure when --json was not asked for", () => {
+    const result = run(["check", "--cwd", "/definitely-not-here"]);
+    expect(result.code).toBe(2);
+    expect(result.out).toBe("");
+    expect(result.err).toContain("does not exist");
+  });
+
+  it("answers a file-level failure with a document too", () => {
+    const dir = makeRepo({ "a.env": "TOKEN=abc\n" });
+    const result = run(["diff", "--json", path.join(dir, "a.env"), path.join(dir, "missing.env")]);
+    expect(result.code).toBe(2);
+    const parsed = JSON.parse(result.out) as { error: { message: string; exitCode: number } };
+    expect(parsed.error.message).toContain("cannot read");
+    expect(parsed.error.exitCode).toBe(2);
   });
 
   it("does not report --help as unread, and answers --version at the top level", () => {

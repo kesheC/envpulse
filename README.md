@@ -512,6 +512,21 @@ $ envpulse check --cwd examples/demo-app --json
 }
 ```
 
+**A failure is a document too.** A run that cannot get far enough to produce a report still answers `--json` callers on stdout. The shape is the one `apidiff` and `repropack` use, so one wrapper can read all three:
+
+```text
+$ envpulse check --json --cwd ./missing-repo; echo "exit=$?"
+{
+  "error": {
+    "message": "--cwd /home/you/missing-repo does not exist",
+    "exitCode": 2
+  }
+}
+exit=2
+```
+
+The sentence a person reads still goes to stderr, so a pipe that parses stdout never has to skip a line. Without `--json`, stdout stays empty.
+
 **What happens when there is no `.env` at all** — the honest answer. In a scratch directory that contains one source file and no env file:
 
 ```text
@@ -702,6 +717,8 @@ tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有�
 全局选项：`-h, --help`、`-v, --version`、`--json`（check / diff / sync / init）、`--reveal`（diff / mask）、`--no-color`；环境变量 `NO_COLOR` 一样能关掉 ANSI 颜色。
 
 退出码：`0` 没有高危问题；`1` 至少一个高危问题（`diff` 发现差异也算）；`2` 用法错误或输入读不了。`--version` 只在顶层回答：`envpulse check --version` 是用法错误，并告诉你版本号该去哪里问 —— 版本横幅不是一次检查。给开关传值也算用法错误（`--json=1`）：`--json` 只有「有」和「没有」两种状态，接受一个词只会让它变成一个没人认识的字符串。取值的选项两种写法都收，`--cwd=.` 与 `--cwd .` 等价。
+
+**失败也是一个文档。** 一次跑不到能出报告的地步时，`--json` 的调用方仍然在 stdout 拿到可解析的结构，形状与 `apidiff`、`repropack` 一致：`{"error":{"message":"--cwd /home/you/missing-repo does not exist","exitCode":2}}`。给人看的那句话仍然只写 stderr，所以解析 stdout 的管道不用跳过任何一行；不带 `--json` 时 stdout 一个字节都不写。
 
 几条值得单独说的设计（英文那节里散在 `check` 的说明和 FAQ 中）：
 

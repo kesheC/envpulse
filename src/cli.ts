@@ -196,6 +196,38 @@ function fail(message: string): never {
   throw new UsageError(message);
 }
 
+/**
+ * Whether the line asks for machine output, judged from the raw tokens.
+ *
+ * The failure paths need this before a command has been parsed: a bad option,
+ * a bad --cwd and an unknown command all happen before the switch, and a
+ * caller that passed --json still asked for a document.
+ */
+function wantsJson(argv: string[]): boolean {
+  for (const token of argv) {
+    if (token === "--") break;
+    if (token === "--json") return true;
+    if (token.startsWith("--json=")) return token.slice("--json=".length) !== "false";
+  }
+  return false;
+}
+
+/**
+ * Report one failure twice: the sentence a person reads and the document a
+ * wrapper parses.
+ *
+ * `envpulse check --json --cwd /missing` exited 2 with an empty stdout, so a
+ * script had no way to tell a failed check from a clean one. The shape matches
+ * repropack and apidiff: {"error":{"message":...,"exitCode":n}}.
+ */
+function reportFailure(message: string, exitCode: number, wantJson: boolean): number {
+  if (wantJson) {
+    process.stdout.write(JSON.stringify({ error: { message, exitCode } }, null, 2) + "\n");
+  }
+  process.stderr.write(`envpulse: ${message}\n`);
+  return exitCode;
+}
+
 function flag(flags: Record<string, string | boolean>, name: string): boolean {
   return flags[name] === true;
 }
@@ -354,11 +386,15 @@ function assertReadable(file: string): void {
 }
 
 export function main(argv: string[] = process.argv.slice(2)): number {
+  const wantJson = wantsJson(argv);
   let args: ParsedArgs;
   try {
     args = parseArgs(argv);
   } catch (error) {
     if (error instanceof UsageError) {
+      // The usage page stays on stderr where it has always been; the document
+      // goes to stdout, because that is the stream a --json caller parses.
+      if (wantJson) process.stdout.write(JSON.stringify({ error: { message: error.message, exitCode: 2 } }, null, 2) + "\n");
       process.stderr.write(`envpulse: ${error.message}\n\n${HELP}`);
       return 2;
     }
@@ -374,10 +410,11 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     return 0;
   }
   if (flag(args.flags, "version") && Object.hasOwn(COMMAND_FLAGS, args.command)) {
-    process.stderr.write(
-      `envpulse: --version is not supported by \`${args.command}\`; it applies to "envpulse --version" on its own\n`,
+    return reportFailure(
+      `--version is not supported by \`${args.command}\`; it applies to "envpulse --version" on its own`,
+      2,
+      wantJson,
     );
-    return 2;
   }
   if (args.command === "") {
     // Running the binary with no arguments asked for nothing, so it exits like
@@ -407,14 +444,10 @@ export function main(argv: string[] = process.argv.slice(2)): number {
         return 2;
     }
   } catch (error) {
-    if (error instanceof UsageError) {
-      process.stderr.write(`envpulse: ${error.message}\n`);
-      return 2;
-    }
+    if (error instanceof UsageError) return reportFailure(error.message, 2, wantJson);
     // Runtime failures (unreadable file, existing output) are not usage errors.
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`envpulse: ${message}\n`);
-    return 1;
+    return reportFailure(message, 1, wantJson);
   }
 }
 

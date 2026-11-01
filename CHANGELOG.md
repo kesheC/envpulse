@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `envpulse mask --version` looked like a masked run. Every command now
   refuses it: ``envpulse: --version is not supported by `check`; it applies to
   "envpulse --version" on its own``. `--help` is unchanged.
+- **A failure is a document too, not just a sentence.** `envpulse check --json
+  --cwd /missing` exited 2 and wrote nothing to stdout, so a wrapper could not
+  tell a failed check from a clean one. Every failure path (`--json`) now emits
+  `{"error":{"message":...,"exitCode":n}}` on stdout as well, with the
+  exit code the run really used; the stderr sentence is unchanged and stdout
+  stays empty when `--json` was not asked for.
 
 ## [0.1.10] - 2026-11-01
 
