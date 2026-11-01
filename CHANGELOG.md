@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that asked for nothing as a usage error, and a script that ran
   `envpulse && deploy` was told the check had passed. `--help` still exits 0,
   because the reader asked for the text.
+- **A switch given a value is now a usage error.** `envpulse check --json=1`
+  stored the string "1" while every reader tests `=== true`, so the flag looked
+  set and did nothing: the run printed its human report and exited as if the
+  flag had never been passed. `--json=true` and `--json=false` were treated
+  the same way. Options that genuinely take a value still accept either
+  spelling, so `--cwd=.` and `--cwd .` remain the same.
 
 ## [0.1.9] - 2026-11-01
 

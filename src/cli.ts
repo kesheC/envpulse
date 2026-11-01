@@ -126,6 +126,10 @@ function parseArgs(argv: string[]): ParsedArgs {
       const eq = arg.indexOf("=");
       const name = eq === -1 ? arg.slice(2) : arg.slice(2, eq);
       if (eq !== -1) {
+        // "--json=1" used to be stored as the string "1", which every reader
+        // tests with === true, so the flag silently did nothing while looking
+        // like it had been set. A value on a switch is a typo, not a setting.
+        if (!valueFlags.has(name)) fail(`--${name} does not take a value`);
         flags[name] = arg.slice(eq + 1);
         continue;
       }

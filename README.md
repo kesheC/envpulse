@@ -177,7 +177,7 @@ INVALID (1)
 > tool that catches secrets in tracked `.env` files has no business shipping one,
 > even a harmless one.
 
-Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage -- and running `envpulse` with no arguments at all is bad usage too, not a pass. Drop it straight into CI:
+Exit code: `0` when no high-severity finding exists, `1` when at least one does, `2` on bad usage -- and running `envpulse` with no arguments at all is bad usage too, not a pass. A switch that is handed a value (`--json=1`) is bad usage as well: `--json` is either on or absent, and accepting the word would leave the flag set to something no reader recognises. Options that do take a value accept either spelling, so `--cwd=.` is `--cwd .`. Drop it straight into CI:
 
 ```yaml
 - run: envpulse check
@@ -697,7 +697,7 @@ tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有�
 
 全局选项：`-h, --help`、`-v, --version`、`--json`（check / diff / sync / init）、`--reveal`（diff / mask）、`--no-color`；环境变量 `NO_COLOR` 一样能关掉 ANSI 颜色。
 
-退出码：`0` 没有高危问题；`1` 至少一个高危问题（`diff` 发现差异也算）；`2` 用法错误或输入读不了。
+退出码：`0` 没有高危问题；`1` 至少一个高危问题（`diff` 发现差异也算）；`2` 用法错误或输入读不了。给开关传值也算用法错误（`--json=1`）：`--json` 只有「有」和「没有」两种状态，接受一个词只会让它变成一个没人认识的字符串。取值的选项两种写法都收，`--cwd=.` 与 `--cwd .` 等价。
 
 几条值得单独说的设计（英文那节里散在 `check` 的说明和 FAQ 中）：
 

@@ -203,6 +203,23 @@ describe("cli", () => {
     expect(run(["init", "--from-code", "--cwd", dir, "--dry-run"]).code).toBe(0);
   });
 
+  // "--json=1" stored the string "1" while every reader tests === true, so
+  // the flag looked set and did nothing. A value on a switch is a typo.
+  it("rejects a value on a flag that takes none", () => {
+    for (const argv of [["check", "--json=1"], ["check", "--json=false"], ["check", "--no-color=yes"]]) {
+      const result = run(argv);
+      expect(result.code, argv.join(" ")).toBe(2);
+      expect(result.out, argv.join(" ")).toBe("");
+      expect(result.err, argv.join(" ")).toContain("does not take a value");
+    }
+  });
+
+  it("still accepts --flag=value for the options that do take one", () => {
+    const dir = makeRepo({ ".env.example": "PORT=3000\n", "src/app.ts": "process.env.PORT;\n" });
+    const result = run(["check", "--cwd=" + dir]);
+    expect(result.code).toBe(0);
+  });
+
   it("does not report --help or --version as unread", () => {
     const result = run(["check", "--help"]);
     expect(result.code).toBe(0);
