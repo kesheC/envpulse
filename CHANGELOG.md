@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gate against matching, drifted, non-semver and prerelease tags; the
   package-contents assertion against a complete manifest, a stray `.js.map`, an
   empty `dist/` and a leaked `src/`. 21 cases.
+- **The published tarball no longer carries dead sourcemaps.** `tsconfig.build.json`
+  kept inheriting `sourceMap: true`, so `npm pack` shipped eleven `.js.map` files
+  that point at a `src/` the package does not contain -- files nobody can open.
+  The build config now turns `sourceMap` and `declarationMap` off, and
+  `tests/package.test.ts` fails if a map comes back.
 - **`npm run build` now clears `dist/` first.** This package was the last one
   without a `clean` script, so turning sourcemaps off would have left the
   previous build's eleven `.js.map` files in `dist/` and `npm pack` would have
