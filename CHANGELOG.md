@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-11-01
+
+### Added
+
+- **The README is Chinese as well as English.** The nine H3 sections under
+  `## 中文` now cover the same ground as the English text -- problem, install,
+  quick start, usage, how it works, API, FAQ, security and changelog, licence.
+  2,499 CJK characters, up from 1,667.
+
 ### Fixed
 
 - **`envpulse check --reveal` exited 0 having ignored the flag.** Every command
@@ -16,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anything else is a usage error that names the commands that do read it:
   ``envpulse: `check` does not read --reveal; it applies to diff, mask``.
   `--help` and `--version` stay universal.
+- **The 0.1.8 notes now match what changed.** The sourcemap removal is its own
+  bullet instead of a clause inside the `clean` one, with the measured numbers:
+  eleven `.js.map` files and 74,771 bytes that used to ship in a 36-file
+  tarball, now 25 files. Version headings got their link definitions, so
+  `[0.1.7]` and `[0.1.8]` no longer render as literal text, and `[Unreleased]`
+  compares against v0.1.8 instead of v0.1.6.
+
+### Quality
+
+- 149 tests across 10 spec files, 2,455 lines of TypeScript.
+- CI matrix: Ubuntu and Windows, Node 20 and 22.
+- Zero runtime dependencies.
 
 ## [0.1.8] - 2026-11-01
 
@@ -195,7 +216,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: Ubuntu and Windows, Node 20 and 22.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/kesheC/envpulse/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/kesheC/envpulse/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/kesheC/envpulse/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/kesheC/envpulse/compare/v0.1.5...v0.1.6
