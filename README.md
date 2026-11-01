@@ -637,7 +637,9 @@ MIT © 2026 kesheC. See [LICENSE](LICENSE).
 
 `envpulse` 是一个**零运行时依赖**的命令行工具（只用 Node.js 标准库），把 `.env` 文件和源码里真正读取的变量做交叉核对，报告 **缺失（MISSING）**、**未被使用（UNUSED）**、**文件间漂移（DRIFT）**、**重复定义（DUPLICATE）** 和 **真实密钥泄漏（UNSAFE）**；写成 `KEY value`（少一个等号）的行也不再被静默吞掉，而是报 **非法行（INVALID）**。
 
-### 它解决什么问题
+下面九个小节与上方英文的九个 `##` 小节一一对应、顺序相同、信息等价，命令、选项、退出码、版本号和包体积数字都与英文部分一致。可复制的命令码块只保留在英文小节里；这里写成行内命令，不再重复贴一份迟早会走样的副本。
+
+### 问题所在（The problem）
 
 每个团队的 `.env.example` 都会和 `.env` 漂移，`.env` 又会和代码漂移，而这些错误**全都是静默的**：
 
@@ -646,110 +648,104 @@ MIT © 2026 kesheC. See [LICENSE](LICENSE).
 - 有人为了「演示格式」，把真实的 `sk_live_...` 密钥贴进 `.env.example` 并提交了。
 - `.env` 里 `PORT=` 定义了两次，最后一行静默生效，第一行是假的。
 
-ESLint 不管这些，`dotenv` 不管这些，人工 review 在 400 行 diff 里也看不出来。envpulse 连 Node 启动在内跑完一次不到半秒（本机实测 5 次：264–351 毫秒）。
+ESLint 不管这些，`dotenv` 不管这些，人工 review 在 400 行 diff 里也看不出来。envpulse 连 Node 启动在内跑完一次不到半秒：对下面那个 fixture 连跑 5 次，实测 264–351 毫秒。
 
-### 安装
+### 安装（Install）
 
-`envpulse` **没有发布到 npm registry**。这个名字目前还是空的，只是本项目还没有发布凭据。
-每个 release 都附带可直接安装的 tarball：
+`envpulse` **没有发布到 npm registry**。这个名字目前还是空的，只是本项目还没有发布凭据，所以每个 release 都附带可直接安装的 tarball：
 
-```bash
-# 全局安装：直接从最新 release 装
-npm install -g https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
-envpulse --version
-```
+- 全局安装最新 release 的 tarball：`npm install -g https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz`，然后 `envpulse --version`。
+- 先校验再装：下载固定名字的 `envpulse.tgz` 和 `envpulse.tgz.sha256`，跑 `sha256sum -c envpulse.tgz.sha256` 看到 `envpulse.tgz: OK`，再 `npm install -g ./envpulse.tgz`。macOS 上没有 `sha256sum`，用 `shasum -a 256 -c envpulse.tgz.sha256`。
+- 或者装成项目的 devDependency：`npm install -D https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz`，然后 `npx envpulse check`。
+- 想自己编译就从源码来：`git clone https://github.com/kesheC/envpulse.git`，`cd envpulse`，`npm ci && npm run build && npm link`。
 
-每个 release 都用固定名字（`envpulse.tgz`）发布同一个 tarball，并附一份
-`envpulse.tgz.sha256` 校验和。运行之前先验一下：
+tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有测试、也没有 `.js.map`。不发源码的包里带 sourcemap 只是指向一个读者永远打不开的文件，所以发布构建关掉了它，由 `tsconfig.build.json` 守着，并有 `tests/package.test.ts` 断言。
 
-```bash
-curl -sLO https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
-curl -sLO https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz.sha256
-sha256sum -c envpulse.tgz.sha256          # envpulse.tgz: OK
-npm install -g ./envpulse.tgz
-```
-
-macOS 上没有 `sha256sum`，用 `shasum -a 256 -c envpulse.tgz.sha256`。
-
-tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有测试、也没有 `.js.map`。
-不发源码的包里带 sourcemap 只是指向一个读者永远打不开的文件，所以发布构建关掉了它，
-由 `tsconfig.build.json` 守着，并有 `tests/package.test.ts` 断言。
-
-```bash
-# 或者装成项目的 devDependency
-npm install -D https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
-npx envpulse check
-```
-
-想自己编译就从源码来：
-
-```bash
-git clone https://github.com/kesheC/envpulse.git
-cd envpulse
-npm ci && npm run build && npm link
-```
+**不要**直接用 git URL 装（`npm i -g git+https://github.com/...`）：checkout 里没有构建产物，而全局安装会跳过 `devDependencies`，也就没有 `tsc` 能把它编出来。
 
 需要 Node.js >= 20.11。没有 `postinstall`，没有原生模块，运行时**不联网**。
 
-### 快速开始
+### 快速开始（Quick start）
 
-```bash
-envpulse check                          # 体检当前仓库
-envpulse check --json                   # 给 CI 用的 JSON
-envpulse diff .env .env.example         # 对比两个文件（默认打码）
-envpulse sync --from .env.example --to .env --dry-run
-envpulse mask < .env                    # 贴到工单里也不会泄露
-envpulse mask .env                      # 也可以直接给文件名
-```
+五条命令就是全部日常用法，依次是：`envpulse check` 体检当前仓库；`envpulse check --json` 拿到给 CI 用的 JSON；`envpulse diff .env .env.example` 对比两个文件（默认打码）；`envpulse sync --from .env.example --to .env --dry-run` 先看会往 `.env` 补哪些键；`envpulse mask < .env` 把配置贴进工单也不泄露。
 
-### 各命令说明
+### 用法（Usage）
 
 | 命令 | 作用 |
 | --- | --- |
-| `check` | 体检：缺失 / 未使用 / 漂移 / 重复 / 非法行 / 泄漏 / 空值。有 high 级问题退出码为 `1`。 |
-| `diff <a> <b>` | 逐键对比两个 env 文件，**默认对值打码**，`--reveal` 才显示明文。 |
+| `check` | 交叉核对项目里每个 `.env*` 文件和源码实际读取的变量，报告 MISSING / UNUSED / DRIFT / DUPLICATE / UNSAFE / EMPTY。 |
+| `diff <a> <b>` | 逐键对比两个 env 文件：只在 A、只在 B、值不同三类；**默认对值打码**。 |
 | `sync --from --to` | 把模板里有、目标文件里没有的键**按模板顺序插入**；绝不删除、绝不改动已有行。 |
 | `mask` | 从 stdin（或一个文件名参数）读 env 文本，把敏感值打码后输出。 |
 | `init --from-code` | 扫描源码，反向生成 `.env.example` 骨架，按目录分组。 |
 
-退出码：`0` 无高危问题，`1` 存在高危问题（或 `diff` 发现差异），`2` 用法错误。
+`check` 的选项：`--cwd <dir>`（默认 `.`）、`--template <file>`（默认自动挑最像例子的那个 env 文件）、`--no-unsafe`（完全跳过密钥检测）、`--no-unused`（跳过 UNUSED 规则）、`--json`、`--no-color`。
 
-真实运行输出见上方的英文部分 —— 每一个代码块都是在 `examples/` 目录和本仓库上实际跑出来的，不是编的。
+`diff <a.env> <b.env>` 的选项：`--reveal`（显示明文值）、`--json`、`--no-color`。
 
-要复现这些 demo，先跑 `npm run demo:fixtures`：它会生成 `examples/demo-app/.env` 和 `examples/leaky/.env.example`，两个都被 `.gitignore` 排除。**故意不提交**：一个专门抓「被提交的 .env」的工具，自己的仓库里不该躺着一个被跟踪的 `.env`，哪怕它无毒。
+`sync` 的选项：`--from <file>`（默认 `.env.example`）、`--to <file>`（默认 `.env`）、`--dry-run`（只打印不写盘）、`--json`、`--no-color`。它按模板顺序补键，复用目标文件已有的引号风格和注释布局，永不删除。
 
-### 几个关键设计
+`mask [file]` 的选项：`--all`（不只敏感值，全部打码）、`--no-key-names`（只看值，忽略像密钥的键名）、`--reveal`（关掉打码，恒等变换，方便做 diff）。
 
-- **零依赖**是刻意的：安全工具自己成为供应链风险就很荒谬。整包 `npm pack` 出来 45 KB、解包 136 KB、25 个文件。
-- **`UNSAFE` 只有三种情况**：① 真密钥在模板文件（`.env.example` / `.env.sample` / `.env.template`）里 —— 模板本来就是给人提交的，一定是 high；② 真密钥在**被 git 跟踪**的普通 `.env` 里 —— 有人把它提交了，同样 high，报错信息会写明 `in a file tracked by git`；③ 真密钥在**没被 git 跟踪**的 `.env` 里 —— 那正是 `.env` 的用途，不报、不吵。跟踪状态整轮只跑一次 `git ls-files`；机器上没有 git、或者当前目录不是仓库时，静默退化为只查模板，绝不因为 git 而崩掉。
-- **打码看值，其次看名字**：`mask` 先判断值本身像不像密钥（带密码的连接串、PEM 私钥、高熵串……），再看键名里有没有 `SECRET` / `TOKEN` / `PASSWORD`。所以 `LOG_LEVEL=debug` 和无密码的 `DATABASE_URL` 保持可读，而键名叫 `DB`、值里带密码的照样打码。
-- **PEM 整块打码，也整块比对**：私钥塞不进一行 env 值 —— 赋值行被打了码、后面的密钥正文却原样输出，这正是最常见的泄漏方式。`mask` 会一路吞到 `-----END ...-----` 那一行；`diff` 共用同一套判断，即使加 `--reveal` 也不显示 PEM 头。同时 `diff` 会为 PEM 正文算一个摘要参与比对，所以**只换了密钥正文、头没变**的轮换也能被发现，行数变了同样能。
-- **真实产出的三种畸形 PEM 也认**：`cat key.pem >> .env` 留下的「空值 + 下一行裸 `-----BEGIN`」、正文中间夹一行空行、小写标签 `-----begin rsa private key-----`（RFC 7468 本来就大小写不敏感）—— 这三种以前都能把私钥正文整段漏到 stdout，现在各自的回归测试都断言**正文片段永远不出现在输出里**，而不是只看退出码。另外约四分之一真实的 2048 位 RSA 私钥，最后一行 base64 以 `=` 结尾，长得像个 `KEY=` 赋值；这类行也算正文。
-- **看不懂的行绝不回显**：一行不是 `KEY=value` 时，它恰恰是最可能藏密钥的地方（半截粘贴的私钥、少了等号的带密码连接串）。所以 `check` 和 `diff` 只描述它 —— 行号、长度、像不像密钥材料 —— 原文既不进 stdout 也不进 `--json`；`mask` 则是就地打码，而不是把它原样吐回来。
-- **不吞掉看不懂的行**：一行既不是注释也不是 `KEY=value` 时，`check` 报 `INVALID`（medium，指向具体行号），`diff` 也不会再说「完全相同」。典型场景是把 `DATABASE_URL=...` 写成 `DATABASE_URL ...`：变量彻底消失，以前只会得到一个指向「缺失」的误导性报告。
-- **`INVALID` 是 medium、不单独把构建搞红**：真实世界的 dotenv 里塞满了格式从没定义过的东西 —— `[section]`、从 README 里抄来的 `KEY value`、YAML 味的 `KEY:`、从部署脚本里粘过来的 shell 片段。其中有些宽松的加载器根本能忍，有些是真 bug，工具分不清；把每一行看不懂的都设成 high，只会让半个世界的仓库变红，然后大家集体加 `--no-invalid`。medium 让它在人类可读报告里被看见、在 `--json` 的 `counts.medium` 里可被消费，而退出码继续留给真正改变运行时行为的问题。真要用它卡 CI，就卡 JSON（英文那节有现成的一行）。
-- **路径写错不是绿灯**：`check` / `init` 的 `--cwd` 会先校验目录存在，不存在就 `exit 2`，而不是打印「没找到 .env」然后退出 0。
-- **`sync` 只插入、不重写**：直接对原始文本做行拼接，所以注释、引号风格、CRLF 换行全部原样保留。
+`init` 的选项：`--from-code`（扫描源码，目前唯一的模式）、`--cwd <dir>`（默认 `.`）、`--out <file>`（默认 `.env.example`）、`--force`（覆盖已存在的输出文件）、`--dry-run`（只打印骨架）、`--json`。
+
+全局选项：`-h, --help`、`-v, --version`、`--json`（check / diff / sync / init）、`--reveal`（diff / mask）、`--no-color`；环境变量 `NO_COLOR` 一样能关掉 ANSI 颜色。
+
+退出码：`0` 没有高危问题；`1` 至少一个高危问题（`diff` 发现差异也算）；`2` 用法错误或输入读不了。
+
+几条值得单独说的设计（英文那节里散在 `check` 的说明和 FAQ 中）：
+
+- **`UNSAFE` 分三种情况**：真密钥在模板文件里（`.env.example` / `.env.sample` / `.env.template`）一定是 `high`，模板本来就是给人提交的；真密钥在**被 git 跟踪**的普通 `.env` 里也是 `high`，报错会写明 `in a file tracked by git`；真密钥在**没被跟踪**的 `.env` 里不报，那正是 `.env` 的用途。
+- **打码看值、其次看名字**：`mask` 先判断值本身像不像密钥（带密码的连接串、PEM 私钥、高熵串），再看键名里有没有 `SECRET` / `TOKEN` / `PASSWORD`。
+- **PEM 整块打码，也整块比对**：私钥塞不进一行 env 值，赋值行被打码、后面几行的密钥正文却被原样打印——这是最常见的泄漏方式，所以 `mask` 会一路吞到 `-----END ...-----`；`diff` 复用同一套判断，即使加 `--reveal` 也不显示 PEM 头，并给正文算一个摘要参与比对，所以只换正文、头没变的密钥轮换也能被发现。
+- **`INVALID` 是 medium，不单独把构建搞红**：真实世界里的 dotenv 塞满了格式从没定义过的东西，宽松的加载器能忍、严格的不能，工具分不清。它在人类可读报告和 `--json` 的 `counts.medium` 里都能被看见，而退出码继续留给真正改变运行时行为的问题。
+- **看不懂的行绝不回显**：一行不是 `KEY=value` 时，它恰恰最可能藏密钥，所以只描述行号、长度和像不像密钥材料，原文既不进 stdout 也不进 `--json`。
+- **路径写错不是绿灯**：`--cwd` 指向的目录不存在就退出 `2`，而不是打印「没找到 .env」然后退出 `0`。
+- **`sync` 只插入、不重写**：直接对原始文本做行拼接，注释、引号风格、CRLF 换行全部原样保留。
 - **占位符不算泄漏**：`changeme`、`xxxx`、`your-key-here`、`sk_test_...`、`AKIAIOSFODNN7EXAMPLE` 都会被放过。
-- **不臆造问题**：仓库里没有 `.env` 模板时，它明确告诉你「无从比对」并退出 `0`，而不是假装发现了问题。
+- **零依赖是刻意的**：安全工具自己成为供应链风险就很荒谬。已发布的整包是 45 KB packed / 136 KB unpacked、25 个文件。
+- **不臆造问题**：仓库里没有可比的模板时，它明确说「无从比对」并退出 `0`，而不是假装发现了问题。
 
-### 库 API
+真实运行输出见英文部分 —— 每一个代码块都是在 `examples/` 目录和本仓库上实际跑出来的，不是编的。要复现这些 demo，先跑 `npm run demo:fixtures`：它会生成 `examples/demo-app/.env` 和 `examples/leaky/.env.example`，两个都被 `.gitignore` 排除。**故意不提交**：一个专门抓「被提交的 .env」的工具，自己的仓库里不该躺着一个被跟踪的 `.env`，哪怕它无毒。
 
-CLI 只是薄壳，核心能力都通过 `dist/index.js` 导出，无 `process.exit`、无 argv 解析：
+### 工作原理（How it works）
 
-```ts
-import { checkProject, diffFiles, syncEnvFiles } from "envpulse";
+1. **解析**（`src/parser.ts`）。是真正的 dotenv 解析器，不是正则切分：`export` 前缀、单引号 / 双引号 / 不带引号的值、受引号保护的行内 `#` 注释、`\n` / `\t` / `\"` 转义、跨行双引号值、UTF-8 BOM、CRLF 与 LF 自适应。解析不了的行收进 `EnvFile.invalid`，变成 `INVALID` 报告并出现在 `diff` 里，绝不静默丢弃 —— 也绝不被回显：记录里存的是长度、摘要和一个「像不像密钥材料」的标志，而不是原文。一个值如果打开了 PEM 块，它会把正文行一并吞掉并保留正文的 SHA-256 摘要，这正是 `diff` 能发现「头没变、正文换了的密钥轮换」的原因。
+2. **扫描**（`src/scan.ts`）。确定性地（按名字排序）遍历目录，跳过 `node_modules`、`.git`、`dist`、`build`、`venv` 等，按扩展名分派：`.js .mjs .cjs .ts .mts .cts .jsx .tsx` 认 `process.env.NAME`、`process.env["NAME"]`、`import.meta.env.NAME`、`Deno.env.get("NAME")`；`.py` 认 `os.environ[...]`、`os.environ.get(...)`、`os.getenv(...)`；`.sh .bash .zsh` 认 `$NAME`、`${NAME:-default}`（`$PATH` 这类 shell 内建会跳过）。每个命中都带从 1 开始的行号，所以报告能指向真实代码。
+3. **判定**（`src/checker.ts` + `src/rules.ts`）。把模板、其它 env 文件、扫描结果放在一起比。密钥检测同时用已知格式正则（Stripe、AWS、GitHub、Slack、OpenAI、PEM 私钥、JWT、带密码的数据库 URL）和香农熵启发式：长度 >= 32 字符、至少 3 种字符类、熵 >= 4 bits/char —— 所以 `sk_test_replace_me` 能过，`sk_live_51H8xQ...` 过不了。
+4. **报告**（`src/report.ts`）。同一份数据模型上跑两个渲染器：一个给人看，一个出 JSON。颜色可以用 `--no-color` 或 `NO_COLOR` 关掉。
+5. **修复**（`src/fix.ts`）。改动按行做、尽量小：`sync` 是把新行拼进原文，而不是把文件重新序列化，所以注释、引号风格、CRLF 全都原样活下来。
 
-const report = checkProject({ cwd: process.cwd() });
-const diff = diffFiles('.env', '.env.example', '.env', '.env.example', { reveal: false });
-const sync = syncEnvFiles({ from: '.env.example', to: '.env', dryRun: true });
-```
+### API
 
-## 安全与变更
+CLI 只是薄壳，核心能力都通过 `dist/index.js` 导出，无 `process.exit`、无 argv 解析：`checkProject({ cwd })` 返回整个体检报告（`report.counts.high`、`report.findings`）；`diffFiles(".env", ".env.example", ".env", ".env.example", { reveal: false })` 返回两个文件的差异；`syncEnvFiles({ from, to, dryRun: true })` 返回会插入哪些键；`parseEnvFile(".env")` 给出 entries、duplicates、引号风格和行号；`scanSource(process.cwd())` 给出每个 key 被哪些 `{file, line}` 读取。
 
-发现安全问题请**不要**开公开 issue —— [SECURITY.md](SECURITY.md) 说明了私密上报渠道以及
-需要提供哪些信息。每个版本的改动都记在 [CHANGELOG.md](CHANGELOG.md)。
+`dist/index.d.ts` 里还导出这些类型：`EnvFile`、`EnvEntry`、`Finding`、`CheckReport`、`DiffReport`、`ScanResult` 等。
 
-## License
+### 常见问题（FAQ）
+
+**它会把我的密钥上传吗？** 不会。它从不打开套接字：没有遥测、没有 registry 请求、没有更新检查。去读 `src/` —— 约 2,400 行，只 import 了 `node:fs`、`node:path`、`node:process`、`node:url`、`node:crypto`（给 PEM 正文算摘要）和 `node:child_process`（只用来跑 `git ls-files`，读本地索引，不碰网络）。
+
+**测试专用假密钥会被误报吗？** 一般不会：占位符（`changeme`、`xxxx`、`your-key-here`、`sk_test_...`、`AKIAIOSFODNN7EXAMPLE`）被显式放过。万一某个 fixture 还是踩线，`--no-unsafe` 能关掉整条规则。
+
+**我本机 `.env` 里就是真密钥，会把构建搞红吗？** 不会 —— 只有 git 跟踪它时才会。被忽略的 `.env` 完全不产生 `UNSAFE`；一旦 `git ls-files` 报了它，同一个值立刻变 `high`，因为这时它已经进了你的历史和远端。
+
+**为什么不直接用 `dotenv-linter`？** `dotenv-linter` 检查单个文件的风格；envpulse 检查的是你的 env 文件和源码之间的**关系** —— 真实故障正是从那来的。
+
+**它给我框架隐式读取的变量（Next.js、Vite、`NODE_ENV`）报了 UNUSED。** 写进模板才是诚实的做法，因为框架确实会读它。`UNUSED` 是 low 级、从不把构建搞红，误报的代价只是一行噪音。
+
+**构建过了，但线上某个变量是 `undefined`，envpulse 能发现吗？** 只有当文件本身就写错了才行。像 `DATABASE_URL postgres://...`（少了 `=`）这样的行什么都解析不出来，那个键根本不存在 —— 跑同一条命令你会拿到指向该行的 `INVALID`，以及由它连带出来的问题。加 `--json` 后 grep 对应的 code 即可。
+
+**`--cwd` 打错字会怎样？** 退出 `2`，stderr 上是 `--cwd ... does not exist`。写错路径绝不能看起来像「一切正常」。
+
+**`sync` 会删键吗？** 永远不会。过期键只被报告、被保留；`sync` 只做插入。
+
+**支持 monorepo 吗？** `check --cwd packages/api` 现在就能用；`--workspace` 在路线图里。
+
+### 安全与变更（Security and changes）
+
+发现安全问题请**不要**开公开 issue —— [SECURITY.md](SECURITY.md) 说明了私密上报渠道以及需要提供哪些信息。每个版本的改动都记在 [CHANGELOG.md](CHANGELOG.md)。
+
+### 许可证（License）
 
 MIT © 2026 kesheC。详见 [LICENSE](LICENSE)。
