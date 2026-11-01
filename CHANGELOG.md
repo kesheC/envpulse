@@ -20,10 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gate against matching, drifted, non-semver and prerelease tags; the
   package-contents assertion against a complete manifest, a stray `.js.map`, an
   empty `dist/` and a leaked `src/`. 21 cases.
-- **Three guards the old test did not have.** The release is re-published with
-  `gh release edit --draft=false` before any upload, the `envpulse` bin is smoke
-  tested, and the build clears `dist/` first.
+- **`npm run build` now clears `dist/` first.** This package was the last one
+  without a `clean` script, so turning sourcemaps off would have left the
+  previous build's eleven `.js.map` files in `dist/` and `npm pack` would have
+  shipped them anyway. The tarball went from 36 files to 25, about a fifth
+  smaller.
 - `pack-meta.json`, written by the CI package-contents assertion, is ignored.
+
 ## [0.1.7] - 2026-11-01
 
 ### Fixed
@@ -177,7 +180,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: Ubuntu and Windows, Node 20 and 22.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/kesheC/envpulse/compare/v0.1.7...v0.1.8
+[0.1.7]: https://github.com/kesheC/envpulse/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/kesheC/envpulse/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/kesheC/envpulse/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/kesheC/envpulse/compare/v0.1.3...v0.1.4
