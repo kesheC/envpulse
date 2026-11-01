@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.11-informational.svg)](package.json)
 
-**Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The published package is 57 KB packed / 206 KB unpacked, 36 files.
+**Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The published package is 45 KB packed / 136 KB unpacked, 25 files.
 
 ---
 
@@ -149,7 +149,7 @@ of `.env`, so the variable silently vanishes:
 
 ```text
 $ envpulse check --cwd /tmp/noequals
-envpulse check  (v0.1.7)
+envpulse check  (v0.1.8)
 cwd: <scratch>/noequals
 
 env files
@@ -189,7 +189,7 @@ here; your own machine prints its real path and nothing else differs:
 
 ```text
 $ envpulse check --cwd examples/demo-app
-envpulse check  (v0.1.7)
+envpulse check  (v0.1.8)
 cwd: <repo>/examples/demo-app
 
 env files
@@ -273,7 +273,7 @@ Values are masked by default. `diff` exits `1` when the files differ (same conve
 
 ```text
 $ envpulse diff .env .env.example
-envpulse diff  (v0.1.7)
+envpulse diff  (v0.1.8)
 A: .env (5 keys)
 B: .env.example (6 keys)
 
@@ -314,7 +314,7 @@ prints a PEM block, and the count below reports key material lines only
 
 ```text
 $ envpulse diff a.env b.env --reveal
-envpulse diff  (v0.1.7)
+envpulse diff  (v0.1.8)
 A: a.env (1 keys)
 B: b.env (1 keys)
 
@@ -332,7 +332,7 @@ not keys, but they are content:
 
 ```text
 $ envpulse diff junk.env junk2.env
-envpulse diff  (v0.1.7)
+envpulse diff  (v0.1.8)
 A: junk.env (2 keys)
 B: junk2.env (2 keys)
 
@@ -457,7 +457,7 @@ Every command accepts `--json` for CI and dashboards. This is a real run (140 li
 $ envpulse check --cwd examples/demo-app --json
 {
   "tool": "envpulse",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "command": "check",
   "cwd": ".../examples/demo-app",
   "envFiles": [
@@ -517,7 +517,7 @@ $ envpulse check --cwd examples/demo-app --json
 ```text
 $ mkdir -p /tmp/nodotenv/src && echo 'const api = process.env.API_URL;' > /tmp/nodotenv/src/index.js
 $ cd /tmp/nodotenv && envpulse check
-envpulse check  (v0.1.7)
+envpulse check  (v0.1.8)
 cwd: <scratch>/nodotenv
 
 no .env files found - nothing to cross-check.
@@ -534,7 +534,7 @@ envpulse does not invent problems to look busy. With no template there is nothin
 
 ```text
 $ envpulse check
-envpulse check  (v0.1.7)
+envpulse check  (v0.1.8)
 cwd: <scratch>/empty
 
 no .env files found - nothing to cross-check.
@@ -550,7 +550,7 @@ And when there is a `.env` but no template, it uses the `.env` itself as the ref
 
 ```text
 $ cd /tmp/dotenv-only && envpulse check
-envpulse check  (v0.1.7)
+envpulse check  (v0.1.8)
 cwd: <scratch>/dotenv-only
 
 env files
@@ -720,7 +720,7 @@ envpulse mask .env                      # 也可以直接给文件名
 
 ### 几个关键设计
 
-- **零依赖**是刻意的：安全工具自己成为供应链风险就很荒谬。整包 `npm pack` 出来 57 KB、解包 206 KB、36 个文件。
+- **零依赖**是刻意的：安全工具自己成为供应链风险就很荒谬。整包 `npm pack` 出来 45 KB、解包 136 KB、25 个文件。
 - **`UNSAFE` 只有三种情况**：① 真密钥在模板文件（`.env.example` / `.env.sample` / `.env.template`）里 —— 模板本来就是给人提交的，一定是 high；② 真密钥在**被 git 跟踪**的普通 `.env` 里 —— 有人把它提交了，同样 high，报错信息会写明 `in a file tracked by git`；③ 真密钥在**没被 git 跟踪**的 `.env` 里 —— 那正是 `.env` 的用途，不报、不吵。跟踪状态整轮只跑一次 `git ls-files`；机器上没有 git、或者当前目录不是仓库时，静默退化为只查模板，绝不因为 git 而崩掉。
 - **打码看值，其次看名字**：`mask` 先判断值本身像不像密钥（带密码的连接串、PEM 私钥、高熵串……），再看键名里有没有 `SECRET` / `TOKEN` / `PASSWORD`。所以 `LOG_LEVEL=debug` 和无密码的 `DATABASE_URL` 保持可读，而键名叫 `DB`、值里带密码的照样打码。
 - **PEM 整块打码，也整块比对**：私钥塞不进一行 env 值 —— 赋值行被打了码、后面的密钥正文却原样输出，这正是最常见的泄漏方式。`mask` 会一路吞到 `-----END ...-----` 那一行；`diff` 共用同一套判断，即使加 `--reveal` 也不显示 PEM 头。同时 `diff` 会为 PEM 正文算一个摘要参与比对，所以**只换了密钥正文、头没变**的轮换也能被发现，行数变了同样能。
