@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is the one that rots. The sentence now states what actually ships — `dist/`, `README.md` and
   `LICENSE` — which is what CI asserts on every run and what stays true at any size.
 
+- **The README quoted four `check` runs whose numbers nothing checked.** Every transcript ends
+  with a line like `3 high, 4 medium, 2 low  -> exit 1`, and one `--json` body repeats the same
+  three numbers as `counts`. Those numbers are claims about what a fixture on disk produces, but
+  the fixtures are written by `scripts/make-demo-app.mjs` and `scripts/make-leaky-fixture.mjs`,
+  which no reader re-reads and no test re-ran: adding one line to the demo `.env` moved the
+  report and left the README quoting a run that no longer happens. `tests/readme.test.ts` now
+  rebuilds each fixture from its generator in a throwaway directory, runs `checkProject` over the
+  result, and asserts the README still carries the exact summary line and exit code — plus the
+  three `counts` values in the JSON block. It also reconstructs the two smaller scenarios the
+  README documents (a swallowed assignment, and a `.env` with no template) from the same prose
+  the reader follows.
+
 ## [0.1.14] - 2026-11-02
 
 ### Added
