@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The README advertised a tarball size that stopped being true two versions ago.** The intro said
+  the published package was `45 KB packed / 136 KB unpacked, 25 files`; `npm pack --dry-run` on
+  0.1.14 reports 50.6 kB packed, 151.1 kB unpacked and 27 files, because the release grew `dist/`
+  entries without anyone revisiting the sentence. A number that tracks nothing is worse than no
+  number: it is the one claim in the file a reader cannot check without running a command, so it
+  is the one that rots. The sentence now states what actually ships — `dist/`, `README.md` and
+  `LICENSE` — which is what CI asserts on every run and what stays true at any size.
+
 ## [0.1.14] - 2026-11-02
 
 ### Added

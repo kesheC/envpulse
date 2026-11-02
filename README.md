@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.11-informational.svg)](package.json)
 
-**Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The published package is 45 KB packed / 136 KB unpacked, 25 files.
+**Zero runtime dependencies.** Node.js standard library only — nothing to audit, nothing to pin, nothing that breaks on a Tuesday. The published tarball is `dist/`, `README.md` and `LICENSE`, and CI fails the build if `src/`, the tests or a sourcemap get in.
 
 ---
 
@@ -629,7 +629,7 @@ Types shipped in `dist/index.d.ts`: `EnvFile`, `EnvEntry`, `Finding`, `CheckRepo
 
 ## FAQ
 
-**Does it upload my secrets anywhere?**  No. It never opens a socket. There is no telemetry, no registry call, no update check. Read `src/` — it is ~2,400 lines and imports only `node:fs`, `node:path`, `node:process`, `node:url`, `node:crypto` (to digest PEM bodies) and `node:child_process` (solely to run `git ls-files`, which reads your local index and touches no network).
+**Does it upload my secrets anywhere?**  No. It never opens a socket. There is no telemetry, no registry call, no update check. Read `src/` — it is ~2,500 lines and imports only `node:fs`, `node:path`, `node:process`, `node:url`, `node:crypto` (to digest PEM bodies) and `node:child_process` (solely to run `git ls-files`, which reads your local index and touches no network).
 
 **Will it flag a fake key in my test suite?**  Usually not: placeholders (`changeme`, `xxxx`, `your-key-here`, `sk_test_...`, `AKIAIOSFODNN7EXAMPLE`) are explicitly ignored. If a fixture still trips it, `--no-unsafe` disables the rule.
 
@@ -745,7 +745,7 @@ tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有�
 - **路径写错不是绿灯**：`--cwd` 指向的目录不存在就退出 `2`，而不是打印「没找到 .env」然后退出 `0`。
 - **`sync` 只插入、不重写**：直接对原始文本做行拼接，注释、引号风格、CRLF 换行全部原样保留。
 - **占位符不算泄漏**：`changeme`、`xxxx`、`your-key-here`、`sk_test_...`、`AKIAIOSFODNN7EXAMPLE` 都会被放过。
-- **零依赖是刻意的**：安全工具自己成为供应链风险就很荒谬。已发布的整包是 45 KB packed / 136 KB unpacked、25 个文件。
+- **零依赖是刻意的**：安全工具自己成为供应链风险就很荒谬。发出去的 tarball 只有 `dist/`、`README.md` 和 `LICENSE`，`src/`、测试或 sourcemap 混进去 CI 就会红。
 - **不臆造问题**：仓库里没有可比的模板时，它明确说「无从比对」并退出 `0`，而不是假装发现了问题。
 
 真实运行输出见英文部分 —— 每一个代码块都是在 `examples/` 目录和本仓库上实际跑出来的，不是编的。要复现这些 demo，先跑 `npm run demo:fixtures`：它会生成 `examples/demo-app/.env` 和 `examples/leaky/.env.example`，两个都被 `.gitignore` 排除。**故意不提交**：一个专门抓「被提交的 .env」的工具，自己的仓库里不该躺着一个被跟踪的 `.env`，哪怕它无毒。
@@ -766,7 +766,7 @@ CLI 只是薄壳，核心能力都通过 `dist/index.js` 导出，无 `process.e
 
 ### 常见问题（FAQ）
 
-**它会把我的密钥上传吗？** 不会。它从不打开套接字：没有遥测、没有 registry 请求、没有更新检查。去读 `src/` —— 约 2,400 行，只 import 了 `node:fs`、`node:path`、`node:process`、`node:url`、`node:crypto`（给 PEM 正文算摘要）和 `node:child_process`（只用来跑 `git ls-files`，读本地索引，不碰网络）。
+**它会把我的密钥上传吗？** 不会。它从不打开套接字：没有遥测、没有 registry 请求、没有更新检查。去读 `src/` —— 约 2,500 行，只 import 了 `node:fs`、`node:path`、`node:process`、`node:url`、`node:crypto`（给 PEM 正文算摘要）和 `node:child_process`（只用来跑 `git ls-files`，读本地索引，不碰网络）。
 
 **测试专用假密钥会被误报吗？** 一般不会：占位符（`changeme`、`xxxx`、`your-key-here`、`sk_test_...`、`AKIAIOSFODNN7EXAMPLE`）被显式放过。万一某个 fixture 还是踩线，`--no-unsafe` 能关掉整条规则。
 
