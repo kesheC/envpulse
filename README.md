@@ -663,6 +663,8 @@ Found a vulnerability? Please do not open a public issue — [SECURITY.md](SECUR
 explains the private reporting channel and what to include. Every release is written
 up in [CHANGELOG.md](CHANGELOG.md).
 
+Want to change something? [CONTRIBUTING.md](CONTRIBUTING.md) lists the house rules and the gates a pull request has to pass.
+
 ## License
 
 MIT © 2026 kesheC. See [LICENSE](LICENSE).
@@ -787,6 +789,8 @@ CLI 只是薄壳，核心能力都通过 `dist/index.js` 导出，无 `process.e
 ### 安全与变更（Security and changes）
 
 发现安全问题请**不要**开公开 issue —— [SECURITY.md](SECURITY.md) 说明了私密上报渠道以及需要提供哪些信息。每个版本的改动都记在 [CHANGELOG.md](CHANGELOG.md)。
+
+想改点什么？[CONTRIBUTING.md](CONTRIBUTING.md) 写了仓库的几条硬规则，以及 PR 必须过的三道闸门。
 
 ### 许可证（License）
 
