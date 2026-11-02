@@ -149,7 +149,7 @@ of `.env`, so the variable silently vanishes:
 
 ```text
 $ envpulse check --cwd /tmp/noequals
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <scratch>/noequals
 
 env files
@@ -189,7 +189,7 @@ here; your own machine prints its real path and nothing else differs:
 
 ```text
 $ envpulse check --cwd examples/demo-app
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <repo>/examples/demo-app
 
 env files
@@ -239,7 +239,7 @@ The leak detector, run against `examples/leaky`:
 
 ```text
 $ envpulse check --cwd examples/leaky
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <repo>/examples/leaky
 
 env files
@@ -282,7 +282,7 @@ Values are masked by default. `diff` exits `1` when the files differ (same conve
 
 ```text
 $ cd examples/demo-app && envpulse diff .env .env.example
-envpulse diff  (v0.1.19)
+envpulse diff  (v0.1.20)
 A: .env (5 keys)
 B: .env.example (6 keys)
 
@@ -325,7 +325,7 @@ prints a PEM block, and the count below reports key material lines only
 $ printf 'PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAsecretbodyone\n-----END RSA PRIVATE KEY-----\n' > a.env
 $ printf 'PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAsecretbodytwo\nMIIEowIBAAKCAQEAsecretbodytwoX\n-----END RSA PRIVATE KEY-----\n' > b.env
 $ envpulse diff a.env b.env --reveal
-envpulse diff  (v0.1.19)
+envpulse diff  (v0.1.20)
 A: a.env (1 keys)
 B: b.env (1 keys)
 
@@ -345,7 +345,7 @@ not keys, but they are content:
 $ printf 'A=1\nGOOD postgres://xyz\nB=2\n' > junk.env
 $ printf 'A=1\nB=2\n' > junk2.env
 $ envpulse diff junk.env junk2.env
-envpulse diff  (v0.1.19)
+envpulse diff  (v0.1.20)
 A: junk.env (2 keys)
 B: junk2.env (2 keys)
 
@@ -470,7 +470,7 @@ Every command accepts `--json` for CI and dashboards. This is a real run — 140
 $ envpulse check --cwd examples/demo-app --json
 {
   "tool": "envpulse",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "command": "check",
   "cwd": ".../examples/demo-app",
   "envFiles": [
@@ -545,7 +545,7 @@ The sentence a person reads still goes to stderr, so a pipe that parses stdout n
 ```text
 $ mkdir -p /tmp/nodotenv/src && echo 'const api = process.env.API_URL;' > /tmp/nodotenv/src/index.js
 $ cd /tmp/nodotenv && envpulse check
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <scratch>/nodotenv
 
 no .env files found - nothing to cross-check.
@@ -562,7 +562,7 @@ envpulse does not invent problems to look busy. With no template there is nothin
 
 ```text
 $ mkdir -p /tmp/empty && cd /tmp/empty && envpulse check
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <scratch>/empty
 
 no .env files found - nothing to cross-check.
@@ -578,7 +578,7 @@ And when there is a `.env` but no template, it uses the `.env` itself as the ref
 
 ```text
 $ cd /tmp/dotenv-only && envpulse check
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <scratch>/dotenv-only
 
 env files
@@ -606,7 +606,7 @@ $ printf 'const url = process.env.API_URL;\nconst token = process.env.API_TOKEN;
 $ printf 'API_URL=https://web.example.com\nVITE_FLAG=on\n' > packages/web/.env.example
 $ printf 'const flag = import.meta.env.VITE_FLAG;\n' > packages/web/main.js
 $ envpulse check; echo "exit=$?"
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <scratch>/mono
 
 env files
@@ -637,7 +637,7 @@ Every line of that report is true, and not one of them is a problem. `VITE_FLAG`
 
 ```text
 $ cd /tmp/mono && envpulse check --cwd packages/api; echo "exit=$?"
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <scratch>/mono/packages/api
 
 env files
@@ -650,7 +650,7 @@ no problems found
 0 problems
 exit=0
 $ cd /tmp/mono && envpulse check --cwd packages/web; echo "exit=$?"
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <scratch>/mono/packages/web
 
 env files
@@ -674,7 +674,7 @@ The fix is not a flag, it is the question. `check --cwd packages/api` is the who
 ```json
 {
   "tool": "envpulse",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "command": "check",
   "cwd": "<workspace>/github",
   "envFiles": [
@@ -859,7 +859,7 @@ tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有�
 
 ```text
 $ cd /tmp/mono && envpulse check
-envpulse check  (v0.1.19)
+envpulse check  (v0.1.20)
 cwd: <scratch>/mono
 
 env files
