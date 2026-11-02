@@ -6,4 +6,6 @@
 # A shell fixture is a script; let it keep the shebang-mandated LF on every OS.
 *.sh text eol=lf
 
-package-lock.json text eol=lf -diff
+# The lockfile is text: without this line git can decide it is binary and
+# a dependency change shows up as "Binary files differ" with no diff to read.
+package-lock.json text eol=lf
