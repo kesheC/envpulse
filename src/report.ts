@@ -7,7 +7,7 @@ import type {
   Severity,
 } from "./types.js";
 
-export const VERSION = "0.1.22";
+export const VERSION = "0.1.23";
 
 export const SEVERITY_ORDER: Severity[] = ["high", "medium", "low"];
 
