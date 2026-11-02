@@ -15,7 +15,21 @@ import { matchUnsafe } from "../src/rules.js";
 // tests are what keeps it out of git.
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
-const gitAvailable = spawnSync("git", ["--version"], { encoding: "utf8" }).status === 0;
+
+// `git ls-files` below only answers the question this test asks when the
+// checkout itself is the work tree. A plain copy, an unpacked tarball or the
+// `npm pack` output has no `.git` at all, and a copy nested inside somebody
+// else's repository answers about that repository instead — so probe the
+// toplevel and skip rather than fail or, worse, pass on the wrong repo.
+const gitToplevel = (() => {
+  const probe = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: repo, encoding: "utf8" });
+  if (probe.status !== 0) return "";
+  return probe.stdout.trim();
+})();
+const sameDirectory = (left: string, right: string): boolean =>
+  path.resolve(left.replace(/[\\/]+$/, "")).toLowerCase() ===
+  path.resolve(right.replace(/[\\/]+$/, "")).toLowerCase();
+const gitAvailable = gitToplevel !== "" && sameDirectory(gitToplevel, repo);
 const dirs: string[] = [];
 
 function readRepoFile(relative: string): string {

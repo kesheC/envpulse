@@ -29,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   README documents (a swallowed assignment, and a `.env` with no template) from the same prose
   the reader follows.
 
+### Fixed
+
+- **`npm test` failed in any checkout that was not itself a git work tree.** `fixtures.test.ts`
+  guarded on `git --version` alone, so the "keeps every generated .env out of git" case ran
+  `git ls-files` inside the package directory and its exit code depended on where the copy lived:
+  a `git archive` export or an unpacked tarball has no `.git` and returned 128, while a copy made
+  inside an unrelated repository answered about that repository instead. The guard now resolves
+  `git rev-parse --show-toplevel` and skips unless the package directory *is* the work tree, so the
+  assertion still runs in a real checkout and the test no longer depends on its surroundings.
+
 ## [0.1.14] - 2026-11-02
 
 ### Added
