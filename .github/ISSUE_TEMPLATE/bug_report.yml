@@ -61,7 +61,7 @@ body:
     attributes:
       label: envpulse version
       description: The output of `envpulse --version`.
-      placeholder: 0.1.1
+      placeholder: 0.1.13
     validations:
       required: true
 
@@ -87,7 +87,7 @@ body:
     attributes:
       label: How you installed it
       description: Release tarball, built from a checkout, or something else.
-      placeholder: npm install -g https://github.com/kesheC/envpulse/releases/download/v0.1.1/envpulse-0.1.1.tgz
+      placeholder: npm install -g https://github.com/kesheC/envpulse/releases/latest/download/envpulse.tgz
     validations:
       required: true
 
