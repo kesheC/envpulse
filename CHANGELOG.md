@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inside an unrelated repository answered about that repository instead. The guard now resolves
   `git rev-parse --show-toplevel` and skips unless the package directory *is* the work tree, so the
   assertion still runs in a real checkout and the test no longer depends on its surroundings.
+- **The contributing guide still said the README transcripts are not re-run by CI.** That
+  stopped being true when `tests/readme.test.ts` landed: it rebuilds every fixture from
+  `scripts/` in a throwaway directory and asserts the four `check` summaries and the `--json`
+  counts. The guide now says which blocks are under test and which were checked by hand.
 
 ## [0.1.14] - 2026-11-02
 
