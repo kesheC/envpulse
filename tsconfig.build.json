@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "noEmit": false,
     "outDir": "dist",
     "rootDir": "src",
     // The package ships dist/ only (see "files" in package.json), so a map
