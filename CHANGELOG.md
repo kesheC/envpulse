@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A section on what `check` does in a monorepo, with the transcripts to match.** The spec asked
+  for one real run of this tool inside the workspace it was built in; the README had none, and the
+  omission hid the honest answer, which is that a root run compares unrelated packages against each
+  other. The new section shows a two-package fixture where every finding is true and none is a
+  problem, the same two packages asked one at a time (both clean), and the dated result of running
+  `check --json --cwd .` at the root of this workspace: 6 env files, 388 source files, 41 `high`,
+  15 `medium`, 2 `low`, 58 findings, exit 1 — all of it cross-package fallout, and none of it a
+  defect in the tool.
+
 ## [0.1.15] - 2026-11-02
 
 ### Fixed

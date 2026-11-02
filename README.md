@@ -595,6 +595,109 @@ note: template .env is not an example file - it may contain real values.
 0 high, 0 medium, 1 low  -> exit 0
 ```
 
+### In a monorepo
+
+Run `check` at the root of a workspace and it does exactly what you asked: it gathers every env file it finds and compares them **against each other**. In a repository of unrelated packages that is the wrong comparison, and the report is easy to misread as "this repo is on fire". Two packages, each correct on its own:
+
+```text
+$ rm -rf /tmp/mono && mkdir -p /tmp/mono/packages/api /tmp/mono/packages/web && cd /tmp/mono
+$ printf 'API_URL=https://api.example.com\nAPI_TOKEN=replace-me\n' > packages/api/.env.example
+$ printf 'const url = process.env.API_URL;\nconst token = process.env.API_TOKEN;\n' > packages/api/index.js
+$ printf 'API_URL=https://web.example.com\nVITE_FLAG=on\n' > packages/web/.env.example
+$ printf 'const flag = import.meta.env.VITE_FLAG;\n' > packages/web/main.js
+$ envpulse check; echo "exit=$?"
+envpulse check  (v0.1.15)
+cwd: <scratch>/mono
+
+env files
+  example  packages/api/.env.example  2 keys
+  example  packages/web/.env.example  2 keys
+
+scanned 2 source file(s), 3 variable(s) read by code
+
+MISSING (1)
+  [HIGH] VITE_FLAG  packages/api/.env.example
+         read by code but missing from packages/api/.env.example
+         at packages/web/main.js:1
+
+DRIFT (2)
+  [MED] API_TOKEN
+         present in .env.example but not in .env.example
+         in packages/api/.env.example, packages/web/.env.example
+  [MED] VITE_FLAG
+         present in .env.example but not in .env.example
+         in packages/web/.env.example, packages/api/.env.example
+
+
+1 high, 2 medium, 0 low  -> exit 1
+exit=1
+```
+
+Every line of that report is true, and not one of them is a problem. `VITE_FLAG` really is read by `packages/web` and really is absent from `packages/api`'s template — because they are two applications, not one. Ask one package at a time and both are clean:
+
+```text
+$ cd /tmp/mono && envpulse check --cwd packages/api; echo "exit=$?"
+envpulse check  (v0.1.15)
+cwd: <scratch>/mono/packages/api
+
+env files
+  example  .env.example  2 keys
+
+scanned 1 source file(s), 2 variable(s) read by code
+
+no problems found
+
+0 problems
+exit=0
+$ cd /tmp/mono && envpulse check --cwd packages/web; echo "exit=$?"
+envpulse check  (v0.1.15)
+cwd: <scratch>/mono/packages/web
+
+env files
+  example  .env.example  2 keys
+
+scanned 1 source file(s), 1 variable(s) read by code
+
+UNUSED (1)
+  [LOW] API_URL  .env.example
+         declared in .env.example but never read by scanned source
+
+
+0 high, 0 medium, 1 low  -> exit 0
+exit=0
+```
+
+The fix is not a flag, it is the question. `check --cwd packages/api` is the whole monorepo story today; a `--workspace` mode that fans out over `packages/*` and sums the results is on the roadmap. A `DRIFT` finding in a root run is worth reading closely: it carries `files` (every template involved) instead of `file`, because it is a statement about several files at once and there is no single one to point at.
+
+**This repository was built inside such a workspace**, so here is that run for real. The workspace holds six independent CLI projects, and `check` at its root sweeps whatever env files the six of them carry — the demo fixtures included. This is `envpulse check --json --cwd .` at that root, with the head of `envFiles` and the tail of the document kept and everything in between cut:
+
+```json
+{
+  "tool": "envpulse",
+  "version": "0.1.15",
+  "command": "check",
+  "cwd": "<workspace>/github",
+  "envFiles": [
+    {
+      "path": "projects/apidiff/demo/env/app-v1.env",
+      "kind": "env",
+      "keys": 3,
+      "duplicates": []
+    }
+  ],
+  "sourceFiles": 388,
+  "counts": {
+    "high": 41,
+    "medium": 15,
+    "low": 2
+  },
+  "notes": [],
+  "exitCode": 1
+}
+```
+
+That run was 1255 lines: the `cwd` is shortened to `<workspace>`, and the other five `envFiles` entries, the 41 names in `variablesRead` and all 58 findings are elided. Every one of them is fallout from the cross-package comparison — the `UNSAFE` findings are the demo fixtures that exist to be leaky, and the `MISSING` ones are test files in the six projects reading variables that the single template in the tree does not declare. The counts are what this tree produced on 2026-11-02; they move as soon as a fixture or a project does, which is why they live in a dated example and not in a promise.
+
 ## How it works
 
 1. **Parse** (`src/parser.ts`). A real dotenv parser, not a regex split: `export` prefixes, single/double/unquoted values, inline `#` comments (respecting quotes), `\n` / `\t` / `\"` escapes, multi-line double-quoted values, UTF-8 BOM, and CRLF/LF detection. Unparseable lines are collected into `EnvFile.invalid`, surfaced as `INVALID` findings and shown in `diff`, never silently dropped — and never quoted either: the record keeps a length, a digest and a "looks like key material" flag instead of the text. A value that opens a PEM block swallows its body lines and keeps a SHA-256 digest of them, which is what lets `diff` see a rotated key whose header did not change.
@@ -749,6 +852,44 @@ tarball 里只有 `dist/`、`README.md` 和 `LICENSE`：没有 `src/`、没有�
 - **不臆造问题**：仓库里没有可比的模板时，它明确说「无从比对」并退出 `0`，而不是假装发现了问题。
 
 真实运行输出见英文部分 —— 每一个代码块都是在 `examples/` 目录和本仓库上实际跑出来的，不是编的。要复现这些 demo，先跑 `npm run demo:fixtures`：它会生成 `examples/demo-app/.env` 和 `examples/leaky/.env.example`，两个都被 `.gitignore` 排除。**故意不提交**：一个专门抓「被提交的 .env」的工具，自己的仓库里不该躺着一个被跟踪的 `.env`，哪怕它无毒。
+
+### 在 monorepo 里（In a monorepo）
+
+在工作区根目录跑 `check`，它做的事情和你要求的一模一样：把能找到的每个 env 文件都收上来，**互相**比对。在一个放着若干互不相干包的大仓库里，这就是拿错的东西在比，而报告读起来像「这个仓库到处是坑」。下面两个包各自都是干净的：
+
+```text
+$ cd /tmp/mono && envpulse check
+envpulse check  (v0.1.15)
+cwd: <scratch>/mono
+
+env files
+  example  packages/api/.env.example  2 keys
+  example  packages/web/.env.example  2 keys
+
+scanned 2 source file(s), 3 variable(s) read by code
+
+MISSING (1)
+  [HIGH] VITE_FLAG  packages/api/.env.example
+         read by code but missing from packages/api/.env.example
+         at packages/web/main.js:1
+
+DRIFT (2)
+  [MED] API_TOKEN
+         present in .env.example but not in .env.example
+         in packages/api/.env.example, packages/web/.env.example
+  [MED] VITE_FLAG
+         present in .env.example but not in .env.example
+         in packages/web/.env.example, packages/api/.env.example
+
+
+1 high, 2 medium, 0 low  -> exit 1
+```
+
+报告的每一句都是真的，而没有一条是问题。`VITE_FLAG` 确实被 `packages/web` 读、确实不在 `packages/api` 的模板里 —— 因为它们是两个应用，不是一个。一次只问一个包，两边都干净：`envpulse check --cwd packages/api` 得 `no problems found` 与 `0 problems`（退出 `0`），`envpulse check --cwd packages/web` 得 `0 high, 0 medium, 1 low  -> exit 0`（那条 low 是 `API_URL` 声明了却没人读）。
+
+解药不是一个开关，而是问题本身：今天 monorepo 的全部答案就是 `check --cwd packages/api`；像 `packages/*` 那样逐个展开再汇总的 `--workspace` 模式还在路线图上。根目录跑出来的 `DRIFT` 值得仔细看 —— 它带的是 `files`（所有相关模板）而不是 `file`，因为它同时描述好几个文件，没有哪一个是「那个」文件。
+
+**本仓库就长在这样一个工作区里**，所以上面那件事有真实的一份：工作区里是六个互相独立的 CLI 项目，在它根目录跑 `check` 会把六者携带的 env 文件全扫进去（连演示夹具一起）。那次运行是 1255 行，58 条 finding、`counts` 是 `41 high / 15 medium / 2 low`、`exitCode` 为 `1` —— 全部是跨包互比的必然产物：`UNSAFE` 来自那些「故意做成会泄漏」的演示夹具，`MISSING` 来自六个项目的测试文件读了一些整棵树里唯一那份模板没有声明的变量。这些数字是 2026-11-02 这棵树跑出来的结果，夹具或项目一变它们就变，所以它们只出现在一个带日期的例子里，而不是一条承诺里。完整 JSON 见英文那节的节选。
 
 ### 工作原理（How it works）
 
