@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-11-02
+
 ### Fixed
 
 - **A bare `tsc` wrote its output next to the sources.** `npm run typecheck` passes `--noEmit`,
@@ -20,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   base config must set `noEmit` and carry no `outDir`, and the build config must restate
   `noEmit: false` with `rootDir` and `include: ["src"]`. Both were true before only by accident of
   whichever file was edited last.
+
+### Quality
+
+- 164 tests across 12 spec files, 2540 lines of TypeScript.
+- CI matrix: Ubuntu and Windows, Node 20, 22 and 24.
+- Zero runtime dependencies.
 
 ## [0.1.17] - 2026-11-02
 
@@ -445,7 +453,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.1.15]: https://github.com/kesheC/envpulse/compare/v0.1.14...v0.1.15
 [0.1.16]: https://github.com/kesheC/envpulse/compare/v0.1.15...v0.1.16
 [0.1.17]: https://github.com/kesheC/envpulse/compare/v0.1.16...v0.1.17
-[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.17...HEAD
+[0.1.19]: https://github.com/kesheC/envpulse/compare/v0.1.17...v0.1.19
+[Unreleased]: https://github.com/kesheC/envpulse/compare/v0.1.19...HEAD
 [0.1.10]: https://github.com/kesheC/envpulse/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/kesheC/envpulse/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/kesheC/envpulse/compare/v0.1.7...v0.1.8
