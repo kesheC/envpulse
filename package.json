@@ -1,6 +1,6 @@
 {
   "name": "envpulse",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "Audit .env drift and secret leaks in your repository - zero dependencies",
   "type": "module",
   "bin": {
@@ -26,6 +26,8 @@
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "precoverage": "npm run build",
+    "coverage": "vitest run --coverage",
     "dev": "npm run build && node dist/cli.js",
     "demo:fixtures": "node scripts/make-demo-app.mjs && node scripts/make-leaky-fixture.mjs",
     "prepack": "npm run build",
@@ -48,7 +50,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "typescript": "^5.7.2",
+    "@vitest/coverage-v8": "^4.1.12",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.12"
   },
   "author": "kesheC",

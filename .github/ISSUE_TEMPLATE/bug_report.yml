@@ -61,7 +61,7 @@ body:
     attributes:
       label: envpulse version
       description: The output of `envpulse --version`.
-      placeholder: 0.1.21
+      placeholder: x.y.z (paste what --version prints)
     validations:
       required: true
 
