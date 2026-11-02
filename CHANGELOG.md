@@ -28,9 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   three `counts` values in the JSON block. It also reconstructs the two smaller scenarios the
   README documents (a swallowed assignment, and a `.env` with no template) from the same prose
   the reader follows.
-
-### Fixed
-
 - **`npm test` failed in any checkout that was not itself a git work tree.** `fixtures.test.ts`
   guarded on `git --version` alone, so the "keeps every generated .env out of git" case ran
   `git ls-files` inside the package directory and its exit code depended on where the copy lived:
